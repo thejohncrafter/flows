@@ -173,8 +173,18 @@ theorem union_included_iff {a b c : Fintype α} : a ∪ b ⊆ c ↔ a ⊆ c ∧ 
 
 theorem included_union_iff {a b c : Fintype α} : a ⊆ b ∪ c ↔ a ⊆ b ∨ a ⊆ c := sorry
 
-theorem not_in_iff_in_without {x : Fintype α} {a : α} (y : Fintype α) (h : x ⊆ y) :
-  ¬ a ∈ x ↔ a ∈ y \ Fintype.mk [a] := sorry
+theorem mem_of_subset_mem {x y : Fintype α} {a : α} (h : x ⊆ y) : a ∈ x → a ∈ y := sorry
+
+theorem not_mem_of_superset_not_mem {x y : Fintype α} {a : α} (h : x ⊆ y) :
+  ¬ a ∈ y → ¬ a ∈ x := contrapose (mem_of_subset_mem h)
+
+theorem mem_iff_singleton_included {x : Fintype α} {a : α} : a ∈ x ↔ (Fintype.mk [a]) ⊆ x := sorry
+
+theorem not_mem_iff_in_without {x : Fintype α} {a : α} :
+  ¬ a ∈ x ↔ x ⊆ x \ Fintype.mk [a] := sorry
+
+theorem included_without_of_included {a b: Fintype α} (c : Fintype α) (h : a ⊆ b) :
+  a \ c ⊆ b \ c := sorry
 
 theorem union_comm (a b : Fintype α) : a ∪ b = b ∪ a := sorry
 
@@ -316,18 +326,51 @@ section
 variable {α β : Type u}
 
 def vanishing (θ : Subst α β) :=
-  ∀ x, (Term.Var x : Term α β) • θ ≠ Term.Var x →
+  ∀ {x}, (Term.Var x : Term α β) • θ ≠ Term.Var x →
     ∀ y, ¬ (x ∈ (𝒱 ((Term.Var y : Term α β) • θ) : Fintype β))
 
-def vanishing_on_term {θ : Subst α β} (h₁ : vanishing θ)
+theorem vanishing_on_term {θ : Subst α β} (h₁ : vanishing θ)
   {x : β} (h₂ : (Term.Var x : Term α β) • θ ≠ Term.Var x)
-  (u : Term α β) : ¬ x ∈ (𝒱 (u • θ) : Fintype β) := sorry
+  (u : Term α β) : ¬ x ∈ (𝒱 (u • θ) : Fintype β) := by
+  induction u with
+  | Cst c => match θ with
+    | ⟨ θ, h ⟩ => intro h; exact h
+  | Var y => exact h₁ h₂ _
+  | Cons l r hl hr =>
+    rw [subst_cons]
+    intro h
+    rw [mem_iff_singleton_included] at h
+    let h := included_union_iff.1 h
+    simp only [← mem_iff_singleton_included] at h
+    cases h with
+    | inl h => exact hl h
+    | inr h => exact hr h
 
-def vanishing_on_vehicle {θ : Subst α β} (h₁ : vanishing θ)
+theorem vanishing_on_vehicle {θ : Subst α β} (h₁ : vanishing θ)
   {x : β} (h₂ : (Term.Var x : Term α β) • θ ≠ Term.Var x) :
-  ¬ x ∈ (𝒱 θ : Fintype β) := sorry
+  ¬ x ∈ (𝒱 θ : Fintype β) := by
+  suffices h : 𝒱 θ ⊆ 𝒱 θ \ (Fintype.mk [x]) by
+    apply not_mem_iff_in_without.2
+    exact h
+  apply Fintype.image_in_of_all_in
+  intro a h
+  apply included_trans _
+    <| included_without_of_included _
+    <| Fintype.in_image_of_is_image h
+  apply not_mem_iff_in_without.1
+  apply vanishing_on_term h₁ h₂
 
-def cons_vanishing {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
+theorem vanishing_respects_vehicle {θ : Subst α β} (h₁ : vanishing θ) {x : β}
+  (h₂ : ¬ x ∈ (𝒱 θ : Fintype β)) {u : Term α β} (h₃ : ¬ x ∈ (𝒱 u : Fintype β)) :
+  ¬ x ∈ (𝒱 (u • θ) : Fintype β) := by
+  apply not_mem_of_superset_not_mem (vehicle_on_image included_refl _)
+  intro h
+  rw [Fintype.mem_union_iff] at h
+  exact match h with
+  | Or.inl h => h₂ h
+  | Or.inr h => h₃ h
+
+theorem cons_vanishing {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
   (h₁ : (𝒱 θ : Fintype β) ⊆ 𝒱 l₁ ∪ 𝒱 l₂)
   (h₂ : (𝒱 φ : Fintype β) ⊆ 𝒱 (r₁ • θ) ∪ 𝒱 (r₂ • θ))
   (h₃ : vanishing θ) (h₄ : vanishing φ) : vanishing (θ * φ) := by
@@ -341,12 +384,15 @@ def cons_vanishing {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
     rw [← RAction.smul_mul]
     apply vanishing_on_term h₄ p
   focus
-    let p₁ := vanishing_on_vehicle h₃ hθ
-    let p₂ := vanishing_on_term h₃ hθ r₁
-    let p₃ := vanishing_on_term h₃ hθ r₂
-    let p₄ := show ¬ y ∈ (𝒱 φ : Fintype β) from
-      sorry -- Using `h₂`, `p₂` and `p₃`
-    admit
+    let p := show ¬ x ∈ (𝒱 φ : Fintype β) by
+      apply not_mem_of_superset_not_mem h₂
+      intro h
+      rw [Fintype.mem_union_iff] at h
+      exact match h with
+      | Or.inl h => (vanishing_on_term h₃ hθ r₁) h
+      | Or.inr h => (vanishing_on_term h₃ hθ r₂) h
+    rw [← RAction.smul_mul]
+    exact vanishing_respects_vehicle h₄ p (h₃ hθ _)
 
 end
 
@@ -496,7 +542,7 @@ private def robinsonR (x : Term α β × Term α β)
         focus
           admit
         focus
-          exact λ _ h => False.elim (h rfl)
+          exact λ h => False.elim (h rfl)
     focus
       admit
   | (Term.Cst a, Term.Cst b) => by
