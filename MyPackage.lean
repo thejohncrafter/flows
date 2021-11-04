@@ -129,6 +129,26 @@ def carrier_spec {θ : Subst α β} {y : β} :
       apply List.mem_map
       apply epsilon_spec hθ
 
+theorem carrier_cons (θ φ : Subst α β) : carrier (θ * φ) ⊆ carrier θ ∪ carrier φ := by
+  rw [Fintype.included_iff]
+  intro x
+  rw [Fintype.mem_union_iff]
+  simp only [carrier_spec]
+  match θ with
+  | ⟨ θ, _ ⟩ => match φ with
+    | ⟨ φ, _ ⟩ => exact comp_carrier
+
+theorem is_one_of_empty_carrier {θ : Subst α β} (h : carrier θ = ∅) : θ = 1 := by
+  admit
+
+theorem is_one_iff_not_modifying (θ : Subst α β) :
+  θ = 1 ↔ ∀ x, (Term.Var x : Term α β) • θ = Term.Var x := by
+  admit
+
+theorem not_one_iff_modifying (θ : Subst α β) :
+  θ ≠ 1 ↔ ∃ x, (Term.Var x : Term α β) • θ ≠ Term.Var x := by
+  admit
+
 def subst_cons {u v : Term α β} {θ : Subst α β} :
   Term.Cons u v • θ = Term.Cons (u • θ) (v • θ) := by
   cases θ; rfl
@@ -195,6 +215,8 @@ theorem flush_union_left (a : Fintype β) : ∀ b c, c ∪ b ∪ a = c ∪ a ∪
 
 theorem union_idempotent' (a b : Fintype β) : a ∪ b ∪ b = a ∪ b := sorry
 
+theorem different_if_not_same_element {x y : Fintype β} {a : β} (h₁ : ¬ a ∈ x) (h₂ : a ∈ y) : x ≠ y := sorry
+
 end
 
 section
@@ -217,6 +239,9 @@ instance : HasVehicle (Subst α β) (Fintype β) where
 
 theorem vehicle_cons {u v : Term α β} : 
   (𝒱 (Term.Cons u v) : Fintype β) = 𝒱 u ∪ 𝒱 v := rfl
+
+theorem vehicle_one : 𝒱 (1 : Subst α β) = (∅ : Fintype β) := by
+  admit
 
 theorem vehicle_on_image {θ : Subst α β} {A : Fintype β}
   (h₁ : 𝒱 θ ⊆ A) (u : Term α β) :
@@ -398,6 +423,38 @@ end
 
 section
 
+theorem cons_carrier_in {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
+  (h₁ : (𝒱 θ : Fintype β) ⊆ 𝒱 l₁ ∪ 𝒱 l₂)
+  (h₂ : (𝒱 φ : Fintype β) ⊆ 𝒱 (r₁ • θ) ∪ 𝒱 (r₂ • θ))
+  (h₃ : vanishing θ) (h₄ : vanishing φ)
+  (h₅ : carrier θ ⊆ 𝒱 l₁ ∪ 𝒱 l₂) (h₆ : carrier φ ⊆ 𝒱 (r₁ • θ) ∪ 𝒱 (r₂ • θ)) :
+  carrier (θ * φ) ⊆ 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) := by
+  apply included_trans (carrier_cons _ _)
+  simp only [vehicle_cons, ← Fintype.union_assoc, flush_union_left (𝒱 l₂)]
+  rw [Fintype.union_assoc]
+  apply union_included_iff.2 (And.intro _ _)
+  focus
+    apply included_trans h₅
+    apply included_union_iff.2 ∘ Or.inl
+    exact included_refl
+  focus
+    apply included_trans h₆
+    apply union_included_iff.2 (And.intro _ _)
+      <;> first
+        | apply included_trans (vehicle_on_image h₁ _)
+          apply union_included_iff.2 (And.intro _ _)
+          focus
+            apply included_union_iff.2 ∘ Or.inl
+            exact included_refl
+          focus
+            apply included_union_iff.2 ∘ Or.inr
+    exact included_union_iff.2 ∘ Or.inl <| included_refl
+    exact included_union_iff.2 ∘ Or.inr <| included_refl
+
+end
+
+section
+
 variable {χ : Type u} (α : Type u) [Monoid α] [RAction χ α]
 
 def unifiers (a b : χ) := λ (θ : α) => a • θ = b • θ
@@ -482,6 +539,7 @@ private def P (x : Term α β × Term α β) := match x with
     ∨ ∃ θ : Subst α β, is_mgu _ u v θ
       ∧ (𝒱 θ : Fintype β) ⊆ 𝒱 u ∪ 𝒱 v
       ∧ vanishing θ
+      ∧ carrier θ ⊆ 𝒱 u ∪ 𝒱 v
 
 private def robinsonR (x : Term α β × Term α β)
   (rh : ∀ y, rel.rel y x → P y) : P x := match x with
@@ -491,40 +549,102 @@ private def robinsonR (x : Term α β × Term α β)
       apply lex_of_le_and_lt
       focus
         simp [invImage, InvImage, Fintype.included_wfRel]
-        -- Some calculations to do...
-        admit
+        suffices h : (𝒱 l₁ ∪ 𝒱 l₂ : Fintype β)
+          ⊆ 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) by
+          byCases p : (𝒱 l₁ ∪ 𝒱 l₂ : Fintype β)
+            = 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂)
+          exact Or.inr p
+          exact Or.inl ⟨ h, p ⟩
+        simp only [vehicle_cons, ← Fintype.union_assoc]
+        simp only [flush_union_left (𝒱 l₂)]
+        rw [Fintype.union_assoc]
+        exact included_union_iff.2 ∘ Or.inl <| included_refl
       focus
         exact Prod.RProd.intro (depth_decr_l _ _) (depth_decr_l _ _)
     match rh (l₁, l₂) p with
     | Or.inl h => by
       apply Or.inl
       admit
-    | Or.inr ⟨ θ, θ_mgu, hθ ⟩ =>
+    | Or.inr ⟨ θ, θ_mgu, θ_vehicle, θ_vanishing, θ_carrier ⟩ =>
       let p := show rel.rel (r₁ • θ, r₂ • θ) (Term.Cons l₁ r₁, Term.Cons l₂ r₂) by
         byCases h : θ = 1
         focus
           rw [h, RAction.smul_one, RAction.smul_one]
           apply lex_of_le_and_lt
           focus
-            -- Same calculations as above...
-            admit
+            simp [invImage, InvImage, Fintype.included_wfRel]
+            suffices h : (𝒱 r₁ ∪ 𝒱 r₂ : Fintype β)
+              ⊆ 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) by
+              byCases p : (𝒱 r₁ ∪ 𝒱 r₂ : Fintype β)
+                = 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂)
+              exact Or.inr p
+              exact Or.inl ⟨ h, p ⟩
+            simp only [vehicle_cons, ← Fintype.union_assoc]
+            simp only [flush_union_left (𝒱 l₂)]
+            rw [Fintype.union_assoc]
+            exact included_union_iff.2 ∘ Or.inr <| included_refl
           focus
             exact Prod.RProd.intro (depth_decr_r _ _) (depth_decr_r _ _)
         focus
-          admit
+          apply Prod.Lex.left
+          apply And.intro
+          focus
+            simp only [vehicle_cons]
+            apply union_included_iff.2 <| And.intro _ _
+            focus
+              apply included_trans (vehicle_on_image included_refl r₁)
+              apply union_included_iff.2 <| And.intro _ _
+              focus
+                apply included_trans θ_vehicle
+                simp only [← Fintype.union_assoc, flush_union_left (𝒱 l₂)]
+                rw [Fintype.union_assoc]
+                apply included_union_iff.2 ∘ Or.inl <| included_refl
+              focus
+                simp only [← Fintype.union_assoc, ← flush_union_left (𝒱 r₁)]
+                apply included_union_iff.2 ∘ Or.inr <| included_refl
+            focus
+              apply included_trans (vehicle_on_image included_refl r₂)
+              apply union_included_iff.2 <| And.intro _ _
+              focus
+                apply included_trans θ_vehicle
+                simp only [← Fintype.union_assoc, flush_union_left (𝒱 l₂)]
+                rw [Fintype.union_assoc]
+                apply included_union_iff.2 ∘ Or.inl <| included_refl
+              focus
+                simp only [← Fintype.union_assoc, ← flush_union_left (𝒱 r₂)]
+                apply included_union_iff.2 ∘ Or.inr <| included_refl
+          focus
+            let ⟨ x, hx ⟩ := (not_one_iff_modifying θ).1 h
+            let not_in_r₁ := vanishing_on_term θ_vanishing hx r₁
+            let not_in_r₂ := vanishing_on_term θ_vanishing hx r₂
+            let not_in_lhs : ¬ x ∈ (𝒱 (r₁ • θ) ∪ 𝒱 (r₂ • θ) : Fintype β) :=
+              λ h => match (Fintype.mem_union_iff _ _ _).1 h with
+                | Or.inl h => not_in_r₁ h
+                | Or.inr h => not_in_r₂ h
+            let in_rhs : x ∈ (𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) : Fintype β) := by
+              simp only [vehicle_cons, ← Fintype.union_assoc, flush_union_left (𝒱 l₂)]
+              rw [Fintype.union_assoc]
+              apply (Fintype.mem_union_iff _ _ _).2 ∘ Or.inl
+              apply mem_iff_singleton_included.2
+              apply included_trans _ θ_carrier
+              apply mem_iff_singleton_included.1
+              exact carrier_spec.2 hx
+            exact different_if_not_same_element not_in_lhs in_rhs
       match rh (r₁ • θ, r₂ • θ) p with
       | Or.inl h => by
         apply Or.inl
         admit
-      | Or.inr ⟨ φ, φ_mgu, hφ ⟩ => by
+      | Or.inr ⟨ φ, φ_mgu, φ_vehicle, φ_vanishing, φ_carrier ⟩ => by
         apply Or.inr
         apply Exists.intro (θ * φ)
-        apply And.intro
+        apply And.intro _ _
         focus
           exact cons_mgu θ_mgu φ_mgu
         focus
-          exact ⟨ cons_vehicle_in hθ.1 hφ.1,
-            cons_vanishing hθ.1 hφ.1 hθ.2 hφ.2 ⟩
+          exact ⟨ cons_vehicle_in θ_vehicle φ_vehicle,
+            cons_vanishing θ_vehicle φ_vehicle θ_vanishing φ_vanishing,
+            cons_carrier_in θ_vehicle φ_vehicle θ_vanishing φ_vanishing
+              θ_carrier φ_carrier ⟩
   | (Term.Var x, Term.Var y) => by
     byCases p : x = y
     focus
@@ -538,11 +658,14 @@ private def robinsonR (x : Term α β × Term α β)
         simp [unifiers, generated_by]
         admit
       focus
-        apply And.intro
+        apply And.intro _ (And.intro _ _)
         focus
-          admit
+          rw [vehicle_one]
+          exact empty_included _
         focus
           exact λ h => False.elim (h rfl)
+        focus
+          admit
     focus
       admit
   | (Term.Cst a, Term.Cst b) => by

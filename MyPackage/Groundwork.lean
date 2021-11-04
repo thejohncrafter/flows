@@ -172,6 +172,9 @@ theorem not_empty_iff (a : α) : ¬ a ∈ (∅ : Fintype α) := by
   rw [mem_mk_iff]
   intro _; assumption
 
+theorem extensionality (x y : Fintype α) : x = y ↔ ∀ a : α, a ∈ x ↔ a ∈ y := by
+  admit
+
 def union : Fintype α → Fintype α → Fintype α := Quotient.lift₂
   (λ l₁ l₂ => Fintype.mk (List.append l₁ l₂)) <| by
   intro _ _ _ _ h₁ h₂
@@ -226,6 +229,9 @@ def included : Fintype α → Fintype α → Prop :=
 
 instance : HasIncluded (Fintype α) where
   included := included
+
+theorem included_iff (x y : Fintype α) : x ⊆ y ↔ ∀ a : α, a ∈ x → a ∈ y := by
+  admit
 
 def image {β : Type u} (f : α → Fintype β) : Fintype α → Fintype β :=
   Quotient.lift (λ l => List.foldr (λ a x => f a ∪ x) ∅ l) <| by
