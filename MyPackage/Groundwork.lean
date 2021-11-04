@@ -47,6 +47,7 @@ theorem List.mem_append {α : Type u} {x : α} {l₁ l₂ : List α} :
         simp [List.append, List.mem]
         apply Or.inr <| t_h <| Or.inr h
 
+-- Replace this theorem with `List.mem_map_iff_image` ?
 theorem List.mem_map {α β : Type u} {x : α} {f : α → β} {l : List α} :
   List.mem x l → List.mem (f x) (List.map f l) := by induction l with
   | nil => simp [List.mem]
@@ -56,6 +57,24 @@ theorem List.mem_map {α β : Type u} {x : α} {f : α → β} {l : List α} :
     match h' with
     | Or.inl _ => apply Or.inl ∘ congrArg _; assumption
     | Or.inr h' => apply Or.inr ∘ h; assumption
+
+theorem List.mem_map_iff_image {α β : Type u} {y : β} {f : α → β} {l : List α} :
+  List.mem y (List.map f l) ↔ ∃ x, List.mem x l ∧ y = f x := by
+  apply Iff.intro
+  focus
+    induction l with
+    | nil => simp [List.mem]
+    | cons x t rh =>
+      intro h
+      byCases p : y = f x
+      focus
+        exact ⟨ x, by simp [List.mem, p] ⟩
+      focus
+        let ⟨ z, h ⟩ := rh (by simp [List.mem, p] at h; assumption)
+        apply Exists.intro z
+        exact ⟨ Or.inr h.1, h.2 ⟩
+  focus
+    exact λ ⟨ x, ⟨ h₁, h₂ ⟩ ⟩ => h₂ ▸ List.mem_map h₁
 
 def List.included {α : Type u} (l₁ l₂ : List α) :=
   ∀ a, List.mem a l₁ → List.mem a l₂
@@ -134,7 +153,7 @@ instance : HasMem α (Fintype α) where
 
 def mk (l : List α) : Fintype α := Quotient.mk l
 
-theorem mem_mk_iff (l : List α) (x : α) : x ∈ Fintype.mk l ↔ List.mem x l := by
+theorem mem_mk_iff {l : List α} {x : α} : x ∈ Fintype.mk l ↔ List.mem x l := by
   suffices h : (Fintype.mem <| Fintype.mk l) = flip List.mem l by
     apply (λ {p q : Prop} (h : p = q) => show p ↔ q by simp_all)
     let h' := congrFun h x
@@ -150,7 +169,7 @@ instance : EmptyCollection (Fintype α) where
 
 theorem not_empty_iff (a : α) : ¬ a ∈ (∅ : Fintype α) := by
   suffices p : ¬ a ∈ (mk [] : Fintype α) by assumption
-  rw [mem_mk_iff [] a]
+  rw [mem_mk_iff]
   intro _; assumption
 
 def union : Fintype α → Fintype α → Fintype α := Quotient.lift₂
@@ -187,6 +206,16 @@ theorem union_assoc (x y z : Fintype α) : x ∪ y ∪ z = x ∪ (y ∪ z) := by
   simp [List.mem_append]
   exact or_assoc
 
+def without [∀ (a : α) (x : Fintype α), Decidable (a ∈ x)] : Fintype α → Fintype α → Fintype α :=
+  Quotient.lift (λ l x => mk <| List.filter (λ a => ¬ a ∈ x) l) <| by
+  intro l₁ l₂ h
+  funext a
+  -- Double inclusion ?
+  admit
+
+instance [∀ (a : α) (x : Fintype α), Decidable (a ∈ x)] : HasWithout (Fintype α) where
+  without := without
+
 def included : Fintype α → Fintype α → Prop :=
   Quotient.lift₂ (λ l₁ l₂ => List.included l₁ l₂) <| by
   intro _ _ _ _ h₁ h₂
@@ -201,6 +230,16 @@ instance : HasIncluded (Fintype α) where
 def image {β : Type u} (f : α → Fintype β) : Fintype α → Fintype β :=
   Quotient.lift (λ l => List.foldr (λ a x => f a ∪ x) ∅ l) <| by
   admit -- Prove each is included in the other ?
+
+theorem in_image_of_is_image {β : Type u} {f : α → Fintype β} {a : α}
+  {x : Fintype α} (h : a ∈ x) : f a ⊆ image f x := sorry
+
+theorem image_in_of_all_in {β : Type u} {f : α → Fintype β} {x : Fintype α}
+  {A : Fintype β} (h : ∀ a, a ∈ x → f a ⊆ A) : image f x ⊆ A := by
+  admit
+
+theorem in_image_of {β : Type u} {f : α → Fintype β} {a : α} {x : Fintype α}
+  {b : β} (h₁ : a ∈ x) (h₂ : b ∈ f a) : b ∈ image f x := sorry
 
 def included_wfRel : WellFoundedRelation (Fintype α) where
   rel x y := included x y ∧ x ≠ y

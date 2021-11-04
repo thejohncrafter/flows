@@ -113,15 +113,21 @@ def carrier (θ : Subst α β) : Fintype β :=
     let π : {x // θ x ≠ Term.Var x} → β := λ ⟨ x, _ ⟩ => x
     Fintype.mk <| List.map π (epsilon <| λ l => ∀ a, List.mem a l)
 
-def carrier_spec (θ : Subst α β) :
-  ∀ y, (Term.Var y : Term α β) • θ ≠ Term.Var y → y ∈ carrier θ :=
+def carrier_spec {θ : Subst α β} {y : β} :
+  y ∈ carrier θ ↔ (Term.Var y : Term α β) • θ ≠ Term.Var y :=
   match θ with
-  | ⟨ θ, h ⟩ => by
-    let π : {x // θ x ≠ Term.Var x} → β := λ ⟨ x, _ ⟩ => x
-    intro x h'
-    rw [show x = π ⟨ x, h' ⟩ from rfl]
-    apply List.mem_map
-    apply epsilon_spec h
+  | ⟨ θ, hθ ⟩ => by
+    apply Iff.intro
+    focus
+      intro h
+      let ⟨ ⟨ x, hx ⟩, ⟨ _, h₂ ⟩ ⟩ := List.mem_map_iff_image.1 h
+      exact h₂ ▸ hx
+    focus
+      let π : {x // θ x ≠ Term.Var x} → β := λ ⟨ x, _ ⟩ => x
+      intro h'
+      rw [show y = π ⟨ y, h' ⟩ from rfl]
+      apply List.mem_map
+      apply epsilon_spec hθ
 
 def subst_cons {u v : Term α β} {θ : Subst α β} :
   Term.Cons u v • θ = Term.Cons (u • θ) (v • θ) := by
@@ -150,6 +156,39 @@ end
 
 section
 
+variable {α : Type u}
+
+theorem included_refl {a : Fintype α} : a ⊆ a := sorry
+
+theorem included_trans {a b c : Fintype α} (h : a ⊆ b) (h' : b ⊆ c) : a ⊆ c := by
+  admit
+
+theorem empty_included (a : Fintype α) : ∅ ⊆ a := sorry
+
+theorem union_on_included {a b c d : Fintype α}
+  (h₁ : a ⊆ b) (h₂ : c ⊆ d) : a ∪ c ⊆ b ∪ d := by
+  admit
+
+theorem union_included_iff {a b c : Fintype α} : a ∪ b ⊆ c ↔ a ⊆ c ∧ b ⊆ c := sorry
+
+theorem included_union_iff {a b c : Fintype α} : a ⊆ b ∪ c ↔ a ⊆ b ∨ a ⊆ c := sorry
+
+theorem not_in_iff_in_without {x : Fintype α} {a : α} (y : Fintype α) (h : x ⊆ y) :
+  ¬ a ∈ x ↔ a ∈ y \ Fintype.mk [a] := sorry
+
+theorem union_comm (a b : Fintype α) : a ∪ b = b ∪ a := sorry
+
+theorem union_idempotent (a : Fintype α) : a ∪ a = a := sorry
+
+/- Two hacky lemmas, would be best with a tactic. -/
+theorem flush_union_left (a : Fintype β) : ∀ b c, c ∪ b ∪ a = c ∪ a ∪ b := sorry
+
+theorem union_idempotent' (a b : Fintype β) : a ∪ b ∪ b = a ∪ b := sorry
+
+end
+
+section
+
 variable {α β : Type u}
 
 def Term.vehicle : Term α β → Fintype β
@@ -161,81 +200,114 @@ instance : HasVehicle (Term α β) (Fintype β) where
   vehicle := Term.vehicle
 
 def Subst.vehicle (θ : Subst α β) : Fintype β := Fintype.image
-  (λ u => 𝒱 (Term.Var u : Term α β)) (carrier θ)
+  (λ x => 𝒱 ((Term.Var x : Term α β) • θ)) (carrier θ)
 
 instance : HasVehicle (Subst α β) (Fintype β) where
   vehicle := Subst.vehicle
 
-theorem included_trans {a b c : Fintype β} (h : a ⊂ b) (h' : b ⊂ c) : a ⊂ c := by
-  admit
-
-theorem union_on_included {a b c d : Fintype β}
-  (h₁ : a ⊂ b) (h₂ : c ⊂ d) : a ∪ c ⊂ b ∪ d := by
-  admit
-
-theorem union_included_iff {a b c : Fintype β} : a ∪ b ⊂ c ↔ a ⊂ c ∧ b ⊂ c := sorry
+theorem vehicle_cons {u v : Term α β} : 
+  (𝒱 (Term.Cons u v) : Fintype β) = 𝒱 u ∪ 𝒱 v := rfl
 
 theorem vehicle_on_image {θ : Subst α β} {A : Fintype β}
-  (h₁ : 𝒱 θ ⊂ A) (u : Term α β) :
-  𝒱 (u • θ) ⊂ A ∪ 𝒱 u := by match θ with
-  | ⟨ θ, h ⟩ =>
+  (h₁ : 𝒱 θ ⊆ A) (u : Term α β) :
+  𝒱 (u • θ) ⊆ A ∪ 𝒱 u := by
     induction u with
-    | Cst c =>
-      let p := show ∀ x : Fintype β, ∅ ⊂ x from sorry
-      exact p _
+    | Cst c => cases θ; apply empty_included
     | Var x =>
-      simp [RSMul.smul, map_reduce, Term.vehicle]
-      -- Depends on wether `θ x = x` or not
-      admit
+      byCases h : (Term.Var x : Term α β) • θ = Term.Var x
+      focus
+        apply included_union_iff.2 ∘ Or.inr
+        rw [h]
+        exact included_refl
+      focus
+        apply included_union_iff.2 ∘ Or.inl
+        apply included_trans _ h₁
+        exact Fintype.in_image_of_is_image <| carrier_spec.2 h
     | Cons l r hl hr =>
       rw [subst_cons]
       simp only [Term.vehicle]
       apply included_trans (union_on_included hl hr)
-      admit -- todo
+      conv =>
+        rhs
+        rw [vehicle_cons, ← Fintype.union_assoc]
+        rw [← union_idempotent A]
+        conv =>
+          lhs
+          conv => rw [Fintype.union_assoc]; rhs; rw [union_comm]
+          rw [← Fintype.union_assoc]
+        rw [Fintype.union_assoc]
+      exact included_refl
 
 theorem vehicle_on_image_contained {θ : Subst α β} {A : Fintype β} {u : Term α β}
-  (h₁ : 𝒱 θ ⊂ A) (h₂ : 𝒱 u ⊂ A) : 𝒱 (u • θ) ⊂ A := sorry
+  (h₁ : 𝒱 θ ⊆ A) (h₂ : 𝒱 u ⊆ A) : 𝒱 (u • θ) ⊆ A :=
+  included_trans (vehicle_on_image h₁ u) <|
+    union_included_iff.2 ⟨ included_refl, h₂ ⟩
 
 theorem vehicle_on_comp {θ φ : Subst α β} {A : Fintype β}
-  (h₁ : 𝒱 θ ⊂ A) (h₂ : 𝒱 φ ⊂ A) : 𝒱 (θ * φ) ⊂ A := sorry
-
-theorem vehicle_cons {u v : Term α β} : 
-  (𝒱 (Term.Cons u v) : Fintype β) = 𝒱 u ∪ 𝒱 v := rfl
+  (h₁ : 𝒱 θ ⊆ A) (h₂ : 𝒱 φ ⊆ A) : 𝒱 (θ * φ) ⊆ A := by
+  apply Fintype.image_in_of_all_in
+  intro x h
+  rw [carrier_spec] at h
+  simp only [] -- Better way to do it ?
+  rw [← RAction.smul_mul]
+  byCases hθ : (Term.Var x : Term α β) • θ = Term.Var x
+  focus
+    have hφ := show (Term.Var x : Term α β) • φ ≠ Term.Var x by
+      intro hφ
+      apply h
+      rw [← RAction.smul_mul, hθ, hφ]
+    rw [hθ]
+    apply included_trans _ h₂
+    exact Fintype.in_image_of_is_image <| carrier_spec.2 hφ
+  focus
+    apply vehicle_on_image_contained h₂
+    -- The pattern of the two following lines occurs often.
+    -- Make it a lemma ?
+    apply included_trans _ h₁
+    exact Fintype.in_image_of_is_image <| carrier_spec.2 hθ
 
 theorem vehicle_on_comp₁ (θ φ : Subst α β) : 
-  (𝒱 (θ * φ) : Fintype β) ⊂ 𝒱 θ ∪ 𝒱 φ := by
-  apply vehicle_on_comp
-  focus
-    admit -- `subset_union_r`
-  focus
-    admit -- `subset_union_l`
+  (𝒱 (θ * φ) : Fintype β) ⊆ 𝒱 θ ∪ 𝒱 φ := vehicle_on_comp
+  (included_union_iff.2 ∘ Or.inl <| included_refl)
+  (included_union_iff.2 ∘ Or.inr <| included_refl)
 
 theorem cons_vehicle_in {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
-  (h₁ : (𝒱 θ : Fintype β) ⊂ 𝒱 l₁ ∪ 𝒱 l₂)
-  (h₂ : (𝒱 φ : Fintype β) ⊂ 𝒱 (r₁ • θ) ∪ 𝒱 (r₂ • θ)) :
-  (𝒱 (θ * φ) : Fintype β) ⊂ 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) := by
+  (h₁ : (𝒱 θ : Fintype β) ⊆ 𝒱 l₁ ∪ 𝒱 l₂)
+  (h₂ : (𝒱 φ : Fintype β) ⊆ 𝒱 (r₁ • θ) ∪ 𝒱 (r₂ • θ)) :
+  (𝒱 (θ * φ) : Fintype β) ⊆ 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) := by
   rw [vehicle_cons, vehicle_cons]
   apply included_trans (vehicle_on_comp₁ θ φ)
   rw [union_included_iff]; apply And.intro
   focus
-    admit
+    apply included_trans h₁
+    conv =>
+      rhs
+      rw [← Fintype.union_assoc]
+      lhs
+      conv => rw [Fintype.union_assoc]; rhs; rw [union_comm]
+      rw [← Fintype.union_assoc]
+    rw [Fintype.union_assoc]
+    apply included_union_iff.2 ∘ Or.inl
+    exact included_refl
   focus
     apply included_trans h₂
-    suffices (𝒱 (r₁ • θ) ∪ 𝒱 (r₂ • θ) : Fintype β)
-      ⊂ 𝒱 l₁ ∪ 𝒱 l₂ ∪ 𝒱 r₁ ∪ (𝒱 l₁ ∪ 𝒱 l₂ ∪ 𝒱 r₁) from sorry
+    suffices h : (𝒱 (r₁ • θ) ∪ 𝒱 (r₂ • θ) : Fintype β)
+      ⊆ 𝒱 l₁ ∪ 𝒱 l₂ ∪ 𝒱 r₁ ∪ (𝒱 l₁ ∪ 𝒱 l₂ ∪ 𝒱 r₂) by
+      apply included_trans h
+      simp only [← Fintype.union_assoc]
+      -- Let's use our hacky lemmas
+      simp only [flush_union_left (𝒱 l₂)]
+      simp only [flush_union_left (𝒱 l₁)]
+      simp only [union_idempotent, union_idempotent']
+      exact included_refl
     apply union_on_included
       <;> apply vehicle_on_image_contained
-    focus
-      apply included_trans h₁
-      -- `subset_union_r`
-      admit
-    focus
-      -- `subset_union_l`
-      admit
-    focus
-      admit
-    focus
-      admit
+      <;> first
+        | apply included_trans h₁
+          apply included_union_iff.2 ∘ Or.inl
+          exact included_refl
+        | apply included_union_iff.2 ∘ Or.inr
+          exact included_refl
 
 end
 
@@ -256,8 +328,8 @@ def vanishing_on_vehicle {θ : Subst α β} (h₁ : vanishing θ)
   ¬ x ∈ (𝒱 θ : Fintype β) := sorry
 
 def cons_vanishing {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
-  (h₁ : (𝒱 θ : Fintype β) ⊂ 𝒱 l₁ ∪ 𝒱 l₂)
-  (h₂ : (𝒱 φ : Fintype β) ⊂ 𝒱 (r₁ • θ) ∪ 𝒱 (r₂ • θ))
+  (h₁ : (𝒱 θ : Fintype β) ⊆ 𝒱 l₁ ∪ 𝒱 l₂)
+  (h₂ : (𝒱 φ : Fintype β) ⊆ 𝒱 (r₁ • θ) ∪ 𝒱 (r₂ • θ))
   (h₃ : vanishing θ) (h₄ : vanishing φ) : vanishing (θ * φ) := by
   intro x hx y
   byCases hθ : (Term.Var x : Term α β) • θ = Term.Var x
@@ -362,7 +434,7 @@ private def rel : WellFoundedRelation (Term α β × Term α β) :=
 private def P (x : Term α β × Term α β) := match x with
   | (u, v) => strangers (Subst α β) u v
     ∨ ∃ θ : Subst α β, is_mgu _ u v θ
-      ∧ (𝒱 θ : Fintype β) ⊂ 𝒱 u ∪ 𝒱 v
+      ∧ (𝒱 θ : Fintype β) ⊆ 𝒱 u ∪ 𝒱 v
       ∧ vanishing θ
 
 private def robinsonR (x : Term α β × Term α β)

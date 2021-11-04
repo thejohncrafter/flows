@@ -14,7 +14,7 @@ class HasIncluded (α : Type u) where
   included : α → α → Prop
 
 class HasWithout (α : Type u) where
-  without : α → α → Prop
+  without : α → α → α
 
 class HasVehicle (α β : Type u) where
   vehicle : α → β
