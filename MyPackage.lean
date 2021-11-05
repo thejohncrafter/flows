@@ -491,6 +491,20 @@ theorem mgu_of_unifies_and_most_general {a b : χ} {θ : α}
   intro ⟨ ρ, hρ ⟩
   rw [← hρ, ← RAction.smul_mul, ← RAction.smul_mul, unifies]
 
+theorem stangers_iff_no_unifier {u v : χ} :
+  strangers α u v ↔ ∀ θ : α, u • θ ≠ v • θ := by
+  apply Iff.intro
+  focus
+    intro h θ h'
+    suffices p : unifiers α u v θ by
+      rw [h] at p; exact False.elim p
+    exact h'
+  focus
+    intro h
+    funext θ
+    apply propext
+    apply Iff.intro (λ h' => h θ h') (λ h => False.elim h)
+
 end
 
 section
@@ -541,99 +555,122 @@ private def P (x : Term α β × Term α β) := match x with
       ∧ vanishing θ
       ∧ carrier θ ⊆ 𝒱 u ∪ 𝒱 v
 
+private theorem decr_left (l₁ r₁ l₂ r₂ : Term α β) :
+  rel.rel (l₁, l₂) (Term.Cons l₁ r₁, Term.Cons l₂ r₂) := by
+  simp [rel, invImage, InvImage]
+  apply lex_of_le_and_lt
+  focus
+    simp [invImage, InvImage, Fintype.included_wfRel]
+    suffices h : (𝒱 l₁ ∪ 𝒱 l₂ : Fintype β)
+      ⊆ 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) by
+      byCases p : (𝒱 l₁ ∪ 𝒱 l₂ : Fintype β)
+        = 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂)
+      exact Or.inr p
+      exact Or.inl ⟨ h, p ⟩
+    simp only [vehicle_cons, ← Fintype.union_assoc]
+    simp only [flush_union_left (𝒱 l₂)]
+    rw [Fintype.union_assoc]
+    exact included_union_iff.2 ∘ Or.inl <| included_refl
+  focus
+        exact Prod.RProd.intro (depth_decr_l _ _) (depth_decr_l _ _)
+
+private theorem decr_right (l₁ r₁ l₂ r₂ : Term α β) {θ : Subst α β}
+  (θ_vehicle : (𝒱 θ : Fintype β) ⊆ 𝒱 l₁ ∪ 𝒱 l₂)
+  (θ_vanishing : vanishing θ) (θ_carrier : carrier θ ⊆ 𝒱 l₁ ∪ 𝒱 l₂) :
+  rel.rel (r₁ • θ, r₂ • θ) (Term.Cons l₁ r₁, Term.Cons l₂ r₂) := by
+  byCases h : θ = 1
+  focus
+    rw [h, RAction.smul_one, RAction.smul_one]
+    apply lex_of_le_and_lt
+    focus
+      simp [invImage, InvImage, Fintype.included_wfRel]
+      suffices h : (𝒱 r₁ ∪ 𝒱 r₂ : Fintype β)
+        ⊆ 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) by
+        byCases p : (𝒱 r₁ ∪ 𝒱 r₂ : Fintype β)
+          = 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂)
+        exact Or.inr p
+        exact Or.inl ⟨ h, p ⟩
+      simp only [vehicle_cons, ← Fintype.union_assoc]
+      simp only [flush_union_left (𝒱 l₂)]
+      rw [Fintype.union_assoc]
+      exact included_union_iff.2 ∘ Or.inr <| included_refl
+    focus
+      exact Prod.RProd.intro (depth_decr_r _ _) (depth_decr_r _ _)
+  focus
+    apply Prod.Lex.left
+    apply And.intro
+    focus
+      simp only [vehicle_cons]
+      apply union_included_iff.2 <| And.intro _ _
+      focus
+        apply included_trans (vehicle_on_image included_refl r₁)
+        apply union_included_iff.2 <| And.intro _ _
+        focus
+          apply included_trans θ_vehicle
+          simp only [← Fintype.union_assoc, flush_union_left (𝒱 l₂)]
+          rw [Fintype.union_assoc]
+          apply included_union_iff.2 ∘ Or.inl <| included_refl
+        focus
+          simp only [← Fintype.union_assoc, ← flush_union_left (𝒱 r₁)]
+          apply included_union_iff.2 ∘ Or.inr <| included_refl
+      focus
+        apply included_trans (vehicle_on_image included_refl r₂)
+        apply union_included_iff.2 <| And.intro _ _
+        focus
+          apply included_trans θ_vehicle
+          simp only [← Fintype.union_assoc, flush_union_left (𝒱 l₂)]
+          rw [Fintype.union_assoc]
+          apply included_union_iff.2 ∘ Or.inl <| included_refl
+        focus
+          simp only [← Fintype.union_assoc, ← flush_union_left (𝒱 r₂)]
+          apply included_union_iff.2 ∘ Or.inr <| included_refl
+    focus
+      let ⟨ x, hx ⟩ := (not_one_iff_modifying θ).1 h
+      let not_in_r₁ := vanishing_on_term θ_vanishing hx r₁
+      let not_in_r₂ := vanishing_on_term θ_vanishing hx r₂
+      let not_in_lhs : ¬ x ∈ (𝒱 (r₁ • θ) ∪ 𝒱 (r₂ • θ) : Fintype β) :=
+        λ h => match (Fintype.mem_union_iff _ _ _).1 h with
+          | Or.inl h => not_in_r₁ h
+          | Or.inr h => not_in_r₂ h
+      let in_rhs : x ∈ (𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) : Fintype β) := by
+        simp only [vehicle_cons, ← Fintype.union_assoc, flush_union_left (𝒱 l₂)]
+        rw [Fintype.union_assoc]
+        apply (Fintype.mem_union_iff _ _ _).2 ∘ Or.inl
+        apply mem_iff_singleton_included.2
+        apply included_trans _ θ_carrier
+        apply mem_iff_singleton_included.1
+        exact carrier_spec.2 hx
+      exact different_if_not_same_element not_in_lhs in_rhs
+
 private def robinsonR (x : Term α β × Term α β)
   (rh : ∀ y, rel.rel y x → P y) : P x := match x with
   | (Term.Cons l₁ r₁, Term.Cons l₂ r₂) =>
-    let p := show rel.rel (l₁, l₂) (Term.Cons l₁ r₁, Term.Cons l₂ r₂) by
-      simp [rel, invImage, InvImage]
-      apply lex_of_le_and_lt
-      focus
-        simp [invImage, InvImage, Fintype.included_wfRel]
-        suffices h : (𝒱 l₁ ∪ 𝒱 l₂ : Fintype β)
-          ⊆ 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) by
-          byCases p : (𝒱 l₁ ∪ 𝒱 l₂ : Fintype β)
-            = 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂)
-          exact Or.inr p
-          exact Or.inl ⟨ h, p ⟩
-        simp only [vehicle_cons, ← Fintype.union_assoc]
-        simp only [flush_union_left (𝒱 l₂)]
-        rw [Fintype.union_assoc]
-        exact included_union_iff.2 ∘ Or.inl <| included_refl
-      focus
-        exact Prod.RProd.intro (depth_decr_l _ _) (depth_decr_l _ _)
-    match rh (l₁, l₂) p with
+    match rh (l₁, l₂) (decr_left _ _ _ _) with
     | Or.inl h => by
       apply Or.inl
-      admit
+      rw [stangers_iff_no_unifier]
+      rw [stangers_iff_no_unifier] at h
+      intro θ h'
+      apply h θ
+      simp only [subst_cons] at h'
+      apply Term.noConfusion h'
+      exact λ h _ => h
     | Or.inr ⟨ θ, θ_mgu, θ_vehicle, θ_vanishing, θ_carrier ⟩ =>
-      let p := show rel.rel (r₁ • θ, r₂ • θ) (Term.Cons l₁ r₁, Term.Cons l₂ r₂) by
-        byCases h : θ = 1
-        focus
-          rw [h, RAction.smul_one, RAction.smul_one]
-          apply lex_of_le_and_lt
-          focus
-            simp [invImage, InvImage, Fintype.included_wfRel]
-            suffices h : (𝒱 r₁ ∪ 𝒱 r₂ : Fintype β)
-              ⊆ 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) by
-              byCases p : (𝒱 r₁ ∪ 𝒱 r₂ : Fintype β)
-                = 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂)
-              exact Or.inr p
-              exact Or.inl ⟨ h, p ⟩
-            simp only [vehicle_cons, ← Fintype.union_assoc]
-            simp only [flush_union_left (𝒱 l₂)]
-            rw [Fintype.union_assoc]
-            exact included_union_iff.2 ∘ Or.inr <| included_refl
-          focus
-            exact Prod.RProd.intro (depth_decr_r _ _) (depth_decr_r _ _)
-        focus
-          apply Prod.Lex.left
-          apply And.intro
-          focus
-            simp only [vehicle_cons]
-            apply union_included_iff.2 <| And.intro _ _
-            focus
-              apply included_trans (vehicle_on_image included_refl r₁)
-              apply union_included_iff.2 <| And.intro _ _
-              focus
-                apply included_trans θ_vehicle
-                simp only [← Fintype.union_assoc, flush_union_left (𝒱 l₂)]
-                rw [Fintype.union_assoc]
-                apply included_union_iff.2 ∘ Or.inl <| included_refl
-              focus
-                simp only [← Fintype.union_assoc, ← flush_union_left (𝒱 r₁)]
-                apply included_union_iff.2 ∘ Or.inr <| included_refl
-            focus
-              apply included_trans (vehicle_on_image included_refl r₂)
-              apply union_included_iff.2 <| And.intro _ _
-              focus
-                apply included_trans θ_vehicle
-                simp only [← Fintype.union_assoc, flush_union_left (𝒱 l₂)]
-                rw [Fintype.union_assoc]
-                apply included_union_iff.2 ∘ Or.inl <| included_refl
-              focus
-                simp only [← Fintype.union_assoc, ← flush_union_left (𝒱 r₂)]
-                apply included_union_iff.2 ∘ Or.inr <| included_refl
-          focus
-            let ⟨ x, hx ⟩ := (not_one_iff_modifying θ).1 h
-            let not_in_r₁ := vanishing_on_term θ_vanishing hx r₁
-            let not_in_r₂ := vanishing_on_term θ_vanishing hx r₂
-            let not_in_lhs : ¬ x ∈ (𝒱 (r₁ • θ) ∪ 𝒱 (r₂ • θ) : Fintype β) :=
-              λ h => match (Fintype.mem_union_iff _ _ _).1 h with
-                | Or.inl h => not_in_r₁ h
-                | Or.inr h => not_in_r₂ h
-            let in_rhs : x ∈ (𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) : Fintype β) := by
-              simp only [vehicle_cons, ← Fintype.union_assoc, flush_union_left (𝒱 l₂)]
-              rw [Fintype.union_assoc]
-              apply (Fintype.mem_union_iff _ _ _).2 ∘ Or.inl
-              apply mem_iff_singleton_included.2
-              apply included_trans _ θ_carrier
-              apply mem_iff_singleton_included.1
-              exact carrier_spec.2 hx
-            exact different_if_not_same_element not_in_lhs in_rhs
-      match rh (r₁ • θ, r₂ • θ) p with
+      match rh (r₁ • θ, r₂ • θ) (by apply decr_right <;> assumption) with
       | Or.inl h => by
         apply Or.inl
-        admit
+        rw [stangers_iff_no_unifier]
+        rw [stangers_iff_no_unifier] at h
+        intro φ h'
+        suffices h' : l₁ • φ = l₂ • φ ∧ r₁ • φ = r₂ • φ by
+          let ⟨ ρ, hρ ⟩ := most_general_of_mgu θ_mgu h'.1
+          apply h ρ
+          simp only [RAction.smul_mul, hρ]
+          exact h'.2
+        simp only [subst_cons] at h'
+        apply And.intro <;> apply Term.noConfusion h'
+          <;> intros
+          <;> assumption
       | Or.inr ⟨ φ, φ_mgu, φ_vehicle, φ_vanishing, φ_carrier ⟩ => by
         apply Or.inr
         apply Exists.intro (θ * φ)
