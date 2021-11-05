@@ -172,7 +172,7 @@ theorem not_empty_iff (a : α) : ¬ a ∈ (∅ : Fintype α) := by
   rw [mem_mk_iff]
   intro _; assumption
 
-theorem extensionality (x y : Fintype α) : x = y ↔ ∀ a : α, a ∈ x ↔ a ∈ y := by
+theorem ext {x y : Fintype α} : x = y ↔ ∀ a : α, a ∈ x ↔ a ∈ y := by
   admit
 
 def union : Fintype α → Fintype α → Fintype α := Quotient.lift₂
@@ -244,8 +244,8 @@ theorem image_in_of_all_in {β : Type u} {f : α → Fintype β} {x : Fintype α
   {A : Fintype β} (h : ∀ a, a ∈ x → f a ⊆ A) : image f x ⊆ A := by
   admit
 
-theorem in_image_of {β : Type u} {f : α → Fintype β} {a : α} {x : Fintype α}
-  {b : β} (h₁ : a ∈ x) (h₂ : b ∈ f a) : b ∈ image f x := sorry
+theorem mem_image_iff {β : Type u} {f : α → Fintype β} {x : Fintype α} {b : β} :
+  b ∈ image f x ↔ ∃ a, a ∈ x ∧ b ∈ f a := sorry
 
 def included_wfRel : WellFoundedRelation (Fintype α) where
   rel x y := included x y ∧ x ≠ y
