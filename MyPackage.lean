@@ -118,8 +118,8 @@ def Subst.ext {θ φ : Subst α β} : θ = φ
       funext x
       exact h x
 
-def Subst.elementary {x y : β} (h : x ≠ y) : Subst α β :=
-  ⟨ λ z => Term.Var <| if z = x then y else z, by
+def Subst.elementary {x : β} {u : Term α β} (h : Term.Var x ≠ u) : Subst α β :=
+  ⟨ λ z => if z = x then u else Term.Var z, by
     apply Exists.intro [⟨ x, by simp [h.symm] ⟩]
     intro ⟨ z, hz ⟩
     simp [List.mem]
@@ -128,11 +128,11 @@ def Subst.elementary {x y : β} (h : x ≠ y) : Subst α β :=
     apply hz
     simp [h'] ⟩
 
-theorem Subst.elementary_spec₁ {x y : β} (h : x ≠ y) :
-  (Term.Var x : Term α β) • (elementary h : Subst α β) = Term.Var y := by
+theorem Subst.elementary_spec₁ {x : β} {u : Term α β} (h : Term.Var x ≠ u) :
+  (Term.Var x : Term α β) • (elementary h : Subst α β) = u := by
   simp [RSMul.smul, elementary, map_reduce]
 
-theorem Subst.elementary_spec₂ {x y z : β} (h : x ≠ y) (h' : z ≠ x) :
+theorem Subst.elementary_spec₂ {x z : β} {u : Term α β} (h : Term.Var x ≠ u) (h' : z ≠ x) :
   (Term.Var z : Term α β) • (elementary h : Subst α β) = Term.Var z := by
   simp [RSMul.smul, elementary, map_reduce, h']
 
@@ -169,7 +169,7 @@ theorem not_one_iff_modifying (θ : Subst α β) :
   θ ≠ 1 ↔ ∃ x, (Term.Var x : Term α β) • θ ≠ Term.Var x := by
   admit
 
-theorem elementary_carrier {x y : β} {h : x ≠ y} :
+theorem elementary_carrier {x : β} {u : Term α β} {h : Term.Var x ≠ u} :
   carrier (Subst.elementary h : Subst α β) = Fintype.mk [x] := by
   apply Fintype.ext.2
   intro a
@@ -181,7 +181,7 @@ theorem elementary_carrier {x y : β} {h : x ≠ y} :
     rw [Fintype.mem_mk_iff]
     intro p
     rw [show a = x by simp_all [List.mem], Subst.elementary_spec₁]
-    exact λ h' => h <| Term.noConfusion h' Eq.symm
+    exact Ne.symm h
 
 theorem carrier_cons (θ φ : Subst α β) : carrier (θ * φ) ⊆ carrier θ ∪ carrier φ := by
   rw [Fintype.included_iff]
@@ -286,8 +286,8 @@ theorem vehicle_cons {u v : Term α β} :
 theorem vehicle_one : 𝒱 (1 : Subst α β) = (∅ : Fintype β) := by
   admit
 
-theorem vehicle_elementary {x y : β} (h : x ≠ y) :
-  𝒱 (Subst.elementary h : Subst α β) = Fintype.mk [y] := by
+theorem vehicle_elementary {x : β} {u : Term α β} (h : Term.Var x ≠ u) :
+  𝒱 (Subst.elementary h : Subst α β) = (𝒱 u : Fintype β) := by
   apply Fintype.ext.2
   intro z
   apply Iff.intro
@@ -301,8 +301,6 @@ theorem vehicle_elementary {x y : β} (h : x ≠ y) :
     exact in_img
   focus
     intro p
-    rw [Fintype.mem_mk_iff] at p
-    rw [show z = y by simp_all [List.mem]]
     simp only [HasVehicle.vehicle, Subst.vehicle]
     apply Fintype.mem_image_iff.2 ⟨ x, (show x ∈ carrier _ from _), _ ⟩
     focus
@@ -310,8 +308,7 @@ theorem vehicle_elementary {x y : β} (h : x ≠ y) :
       simp [List.mem]
     focus
       rw [Subst.elementary_spec₁]
-      apply Fintype.mem_mk_iff.2
-      simp [List.mem]
+      exact p
 
 theorem vehicle_on_image {θ : Subst α β} {A : Fintype β}
   (h₁ : 𝒱 θ ⊆ A) (u : Term α β) :
@@ -414,6 +411,21 @@ theorem cons_vehicle_in {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
         | apply included_union_iff.2 ∘ Or.inr
           exact included_refl
 
+theorem elementary_on_not_in_vehicle {x : β} {u v : Term α β} (h : Term.Var x ≠ u)
+  (h' : ¬ x ∈ (𝒱 v : Fintype β)) :
+  v • (Subst.elementary h : Subst α β) = v := by
+  induction v with
+  | Cst c => rfl
+  | Var y =>
+    apply Subst.elementary_spec₂
+    intro h
+    apply h'
+    rw [h]
+    simp [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem]
+  | Cons l r hl hr =>
+    rw [vehicle_cons, Fintype.mem_union_iff] at h'
+    rw [subst_cons, hl (λ h => h' <| Or.inl h), hr (λ h => h' <| Or.inr h)]
+
 end
 
 section
@@ -489,8 +501,9 @@ theorem cons_vanishing {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
     rw [← RAction.smul_mul]
     exact vanishing_respects_vehicle h₄ p (h₃ hθ _)
 
-theorem elementary_vanishing {x y : β} {h : x ≠ y} :
-  vanishing (Subst.elementary h : Subst α β) := by
+theorem elementary_vanishing {x : β} {u : Term α β} {h₁ : Term.Var x ≠ u}
+  (h₂ : ¬ x ∈ (𝒱 u : Fintype β)) :
+  vanishing (Subst.elementary h₁ : Subst α β) := by
   intro z hz t
   intro h'
   have p : z = x := by
@@ -498,14 +511,15 @@ theorem elementary_vanishing {x y : β} {h : x ≠ y} :
     rw [elementary_carrier, Fintype.mem_mk_iff] at p
     simp_all [List.mem]
   rw [p] at h'
-  (byCases p' : t = x
-    <;> first
-      | rw [p'] at h'
-        rw [Subst.elementary_spec₁] at h'
-        apply h
-      | rw [Subst.elementary_spec₂ _ p'] at h'
-        apply Ne.symm p')
-    <;> simp_all [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem]
+  byCases p' : t = x
+  focus
+    rw [p'] at h'
+    rw [Subst.elementary_spec₁] at h'
+    exact h₂ h'
+  focus
+    rw [Subst.elementary_spec₂ _ p'] at h'
+    apply Ne.symm p'
+    simp_all [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem]
 
 end
 
@@ -579,7 +593,7 @@ theorem mgu_of_unifies_and_most_general {a b : χ} {θ : α}
   intro ⟨ ρ, hρ ⟩
   rw [← hρ, ← RAction.smul_mul, ← RAction.smul_mul, unifies]
 
-theorem stangers_iff_no_unifier {u v : χ} :
+theorem strangers_iff_no_unifier {u v : χ} :
   strangers α u v ↔ ∀ θ : α, u • θ ≠ v • θ := by
   apply Iff.intro
   focus
@@ -730,14 +744,51 @@ private theorem decr_right (l₁ r₁ l₂ r₂ : Term α β) {θ : Subst α β}
         exact carrier_spec.2 hx
       exact different_if_not_same_element not_in_lhs in_rhs
 
+private theorem unify_variable_of_not_in_vehicle {x : β} {u : Term α β}
+  (h₁ : Term.Var x ≠ u) (h₂ : ¬ x ∈ (𝒱 u : Fintype β)) : P ((Term.Var x), u) := by
+  apply Or.inr ∘ Exists.intro (Subst.elementary h₁)
+  apply And.intro (mgu_of_unifies_and_most_general _ _)
+    (And.intro _ (And.intro _ _))
+  focus
+    rw [Subst.elementary_spec₁ h₁]
+    rw [elementary_on_not_in_vehicle]
+    exact h₂
+  focus
+    intro θ hθ
+    apply Exists.intro θ
+    apply Subst.ext.2
+    intro z
+    rw [← RAction.smul_mul]
+    byCases p : z = x
+    focus
+      rw [p, hθ, Subst.elementary_spec₁]
+    focus
+      rw [Subst.elementary_spec₂]
+      exact p
+  focus
+    rw [vehicle_elementary]
+    apply included_union_iff.2 (Or.inr included_refl)
+  focus
+    apply elementary_vanishing
+    exact h₂
+  focus
+    rw [elementary_carrier]
+    exact included_union_iff.2 (Or.inl included_refl)
+
+private theorem variable_stranger_of_in_vehicle {x : β} {u : Term α β}
+  (h₁ : Term.Var x ≠ u) (h₂ : x ∈ (𝒱 u : Fintype β)) : P ((Term.Var x), u) := by
+  apply Or.inl
+  rw [strangers_iff_no_unifier]
+  admit
+
 private def robinsonR (x : Term α β × Term α β)
   (rh : ∀ y, rel.rel y x → P y) : P x := match x with
   | (Term.Cons l₁ r₁, Term.Cons l₂ r₂) =>
     match rh (l₁, l₂) (decr_left _ _ _ _) with
     | Or.inl h => by
       apply Or.inl
-      rw [stangers_iff_no_unifier]
-      rw [stangers_iff_no_unifier] at h
+      rw [strangers_iff_no_unifier]
+      rw [strangers_iff_no_unifier] at h
       intro θ h'
       apply h θ
       simp only [subst_cons] at h'
@@ -747,8 +798,8 @@ private def robinsonR (x : Term α β × Term α β)
       match rh (r₁ • θ, r₂ • θ) (by apply decr_right <;> assumption) with
       | Or.inl h => by
         apply Or.inl
-        rw [stangers_iff_no_unifier]
-        rw [stangers_iff_no_unifier] at h
+        rw [strangers_iff_no_unifier]
+        rw [strangers_iff_no_unifier] at h
         intro φ h'
         suffices h' : l₁ • φ = l₂ • φ ∧ r₁ • φ = r₂ • φ by
           let ⟨ ρ, hρ ⟩ := most_general_of_mgu θ_mgu h'.1
@@ -792,34 +843,37 @@ private def robinsonR (x : Term α β × Term α β)
         rw [is_one_iff_empty_carrier.1 rfl]
         apply empty_included _
     focus
-      apply Or.inr ∘ Exists.intro (Subst.elementary p)
-      apply And.intro (mgu_of_unifies_and_most_general _ _)
-        (And.intro _ (And.intro _ _))
-      focus
-        rw [Subst.elementary_spec₁ p, Subst.elementary_spec₂ p]
-        exact Ne.symm p
-      focus
-        intro θ hθ
-        apply Exists.intro θ
-        apply Subst.ext.2
-        intro z
-        rw [← RAction.smul_mul]
-        byCases p : z = x
-        focus
-          rw [p, hθ, Subst.elementary_spec₁]
-        focus
-          rw [Subst.elementary_spec₂]
-          exact p
-      focus
-        rw [vehicle_elementary]
-        apply included_union_iff.2 (Or.inr included_refl)
-      focus
-        exact elementary_vanishing
-      focus
-        rw [elementary_carrier]
-        exact included_union_iff.2 (Or.inl included_refl)
+      have p' : (Term.Var x : Term α β) ≠ Term.Var y :=
+        λ h => p <| Term.noConfusion h id
+      apply unify_variable_of_not_in_vehicle p'
+      simp [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem, p]
   | (Term.Cst a, Term.Cst b) => by
-    admit -- Same as (Term.Var x, Term.Var y) ?
+    byCases p : a = b
+    focus
+      apply Or.inr ∘ Exists.intro 1
+      rw [p]
+      -- Duplicate from above, may be extracted to a lemma
+      apply And.intro _ (And.intro _ (And.intro _ _))
+      focus
+        funext θ
+        apply propext
+        suffices p : ∃ ρ, 1 * ρ = θ by
+          simp [unifiers, generated_by, p]
+        apply Exists.intro θ
+        exact Monoid.one_mul _
+      focus
+        rw [vehicle_one]
+        exact empty_included _
+      focus
+        exact λ h => False.elim (h rfl)
+      focus
+        rw [is_one_iff_empty_carrier.1 rfl]
+        apply empty_included _
+    focus
+      apply Or.inl
+      rw [strangers_iff_no_unifier]
+      exact λ θ h => p <| match θ with
+      | ⟨ _, _ ⟩ => Term.noConfusion h id
   | _ => sorry
 
 /-
