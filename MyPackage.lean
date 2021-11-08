@@ -202,18 +202,23 @@ section
 
 variable {α β : Type u}
 
-def depth : (u : Term α β) → Nat
+def mass : (u : Term α β) → Nat
 | Term.Cst _ => 0
 | Term.Var _ => 0
-| Term.Cons l r => depth l + depth r + 1
+| Term.Cons l r => mass l + mass r + 1
 
-theorem depth_decr_l (l r : Term β α) : depth l < depth (Term.Cons l r) :=
+theorem mass_decr_l (l r : Term β α) : mass l < mass (Term.Cons l r) :=
   Nat.lt_succ_of_le <| Nat.le_add_right _ _
 
-theorem depth_decr_r (l r : Term β α) : depth r < depth (Term.Cons l r) :=
+theorem mass_decr_r (l r : Term β α) : mass r < mass (Term.Cons l r) :=
   Nat.lt_succ_of_le <| Nat.le_add_left _ _
 
-def Term.depth_wfRel : WellFoundedRelation (Term α β) := measure depth
+def Term.mass_wfRel : WellFoundedRelation (Term α β) := measure mass
+
+def weight (x : β) : (u : Term α β) → Nat
+| Term.Cst _ => 0
+| Term.Var y => if x = y then 1 else 0
+| Term.Cons l r => weight x l + weight x r
 
 end
 
@@ -225,6 +230,8 @@ theorem included_refl {a : Fintype α} : a ⊆ a := sorry
 
 theorem included_trans {a b c : Fintype α} (h : a ⊆ b) (h' : b ⊆ c) : a ⊆ c := by
   admit
+
+theorem not_mem_empty {a : α} : ¬ a ∈ (∅ : Fintype α) := sorry
 
 theorem empty_included (a : Fintype α) : ∅ ⊆ a := sorry
 
@@ -620,6 +627,67 @@ end
 
 section
 
+variable {α β : Type u}
+
+private theorem flush_add_left (a : Nat) {b c : Nat} : b + c + a = b + a + c := sorry
+
+theorem Nat.le_of_le_of_le {a b c d : Nat} (h : a ≤ b) (h' : c ≤ d) : a + c ≤ b + d := sorry
+
+theorem Nat.add_ne_zero_of_l_ne_zero {a b : Nat} (h : a ≠ 0) : a + b ≠ 0 := sorry
+
+theorem Nat.add_ne_zero_of_r_ne_zero {a b : Nat} (h : b ≠ 0) : a + b ≠ 0 := sorry
+
+theorem Nat.one_le_of_ne_zero {a : Nat} (h : a ≠ 0) : 1 ≤ a := sorry
+
+theorem Nat.ne_of_lt {a b : Nat} (h : a < b) : a ≠ b := sorry
+
+theorem Nat.not_lt_self (a : Nat) : ¬ a < a := sorry
+
+theorem mass_lower_bound {x : β} {v : Term α β} (h : Term.Var x ≠ v) (u : Term α β)
+  (θ : Subst α β) : mass u + weight x u * mass (v • θ) ≤ mass (u • (Subst.elementary h * θ)) := by
+  induction u with
+  | Cst c => match θ with
+    | ⟨ θ, _ ⟩ =>
+      suffices p : ∀ n, 0 + 0 * n ≤ 0 from p (mass (map_reduce θ v))
+      intros; simp
+  | Var y => match θ with
+    | ⟨ θ, _ ⟩ =>
+      byCases p : x = y
+        <;> simp [mass, weight, RSMul.smul, map_reduce, Subst.elementary, HMul.hMul, Mul.mul, comp, p]
+      rw [Nat.one_mul]
+      exact Nat.le.refl
+      simp [Ne.symm p, map_reduce, Nat.zero_le]
+  | Cons l r hl hr =>
+    simp only [mass, weight, subst_cons]
+    simp only [Nat.left_distrib, Nat.right_distrib, ← Nat.add_assoc]
+    simp only [flush_add_left ((weight x r) * mass (v • θ))]
+    simp only [flush_add_left (mass r)]
+    simp only [flush_add_left ((weight x l) * mass (v • θ))]
+    simp only [flush_add_left (mass l)]
+    apply Nat.succ_le_succ
+    rw [Nat.add_assoc]
+    exact Nat.le_of_le_of_le hl hr
+
+theorem weight_nonzero_of_mem_vehicle {x : β} {u : Term α β} (h : x ∈ (𝒱 u : Fintype β)) :
+  weight x u ≠ 0 := by
+  induction u with
+  | Cst _ => exact False.elim <| not_mem_empty h
+  | Var y =>
+    suffices p : x = y by
+      rw [p]
+      simp [weight]
+    simp_all [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem]
+  | Cons l r hl hr =>
+    simp only [weight]
+    rw [vehicle_cons, Fintype.mem_union_iff] at h
+    cases h with
+    | inl h => exact Nat.add_ne_zero_of_l_ne_zero <| hl h
+    | inr h => exact Nat.add_ne_zero_of_r_ne_zero <| hr h
+
+end
+
+section
+
 variable {α β : Type u} [Monoid α]
 
 theorem smul_cons_eq {l r : Term α β} {θ : Subst α β} :
@@ -647,7 +715,7 @@ private def rel : WellFoundedRelation (Term α β × Term α β) :=
   invImage (λ (u, v) => ((𝒱 u ∪ 𝒱 v : Fintype β), (u, v)))
   <| Prod.lex
     (Fintype.included_wfRel)
-    (Prod.rprod Term.depth_wfRel Term.depth_wfRel)
+    (Prod.rprod Term.mass_wfRel Term.mass_wfRel)
 
 @[inline]
 private def P (x : Term α β × Term α β) := match x with
@@ -656,6 +724,40 @@ private def P (x : Term α β × Term α β) := match x with
       ∧ (𝒱 θ : Fintype β) ⊆ 𝒱 u ∪ 𝒱 v
       ∧ vanishing θ
       ∧ carrier θ ⊆ 𝒱 u ∪ 𝒱 v
+
+private theorem P_comm (u v : Term α β) : P (u, v) ↔ P (v, u) := by
+  revert u v
+  suffices p : ∀ u v : Term α β, P (u, v) → P (v, u) by
+    intros; apply Iff.intro <;> apply p
+  intro u v h
+  match h with
+  | Or.inl h =>
+    apply Or.inl
+    simp_all only [strangers_iff_no_unifier]
+    intro θ h'
+    exact h θ h'.symm
+  | Or.inr ⟨ θ, θ_mgu, θ_vehicle, θ_vanishing, θ_carrier ⟩ =>
+    apply Or.inr (Exists.intro θ _)
+    apply And.intro _ (And.intro _ (And.intro _ _))
+    focus
+      simp only [is_mgu]
+      suffices p : unifiers (Subst α β) v u = unifiers (Subst α β) u v by
+        rw [p]
+        exact θ_mgu
+      funext φ
+      simp [unifiers]
+      apply propext
+      apply Iff.intro
+      intro h; rw [h]
+      intro h; rw [h]
+    focus
+      rw [union_comm]
+      exact θ_vehicle
+    focus
+      exact θ_vanishing
+    focus
+      rw [union_comm]
+      exact θ_carrier
 
 private theorem decr_left (l₁ r₁ l₂ r₂ : Term α β) :
   rel.rel (l₁, l₂) (Term.Cons l₁ r₁, Term.Cons l₂ r₂) := by
@@ -674,7 +776,7 @@ private theorem decr_left (l₁ r₁ l₂ r₂ : Term α β) :
     rw [Fintype.union_assoc]
     exact included_union_iff.2 ∘ Or.inl <| included_refl
   focus
-        exact Prod.RProd.intro (depth_decr_l _ _) (depth_decr_l _ _)
+        exact Prod.RProd.intro (mass_decr_l _ _) (mass_decr_l _ _)
 
 private theorem decr_right (l₁ r₁ l₂ r₂ : Term α β) {θ : Subst α β}
   (θ_vehicle : (𝒱 θ : Fintype β) ⊆ 𝒱 l₁ ∪ 𝒱 l₂)
@@ -697,7 +799,7 @@ private theorem decr_right (l₁ r₁ l₂ r₂ : Term α β) {θ : Subst α β}
       rw [Fintype.union_assoc]
       exact included_union_iff.2 ∘ Or.inr <| included_refl
     focus
-      exact Prod.RProd.intro (depth_decr_r _ _) (depth_decr_r _ _)
+      exact Prod.RProd.intro (mass_decr_r _ _) (mass_decr_r _ _)
   focus
     apply Prod.Lex.left
     apply And.intro
@@ -744,42 +846,97 @@ private theorem decr_right (l₁ r₁ l₂ r₂ : Term α β) {θ : Subst α β}
         exact carrier_spec.2 hx
       exact different_if_not_same_element not_in_lhs in_rhs
 
+private theorem prepend_elementary_on_variable_unifier {x : β} {u : Term α β} {θ : Subst α β}
+  (h : Term.Var x ≠ u) (h' : (Term.Var x : Term α β) • θ = u • θ) :
+  θ = (Subst.elementary h) * θ := by
+  apply Subst.ext.2
+  intro y
+  rw [← RAction.smul_mul]
+  byCases p : y = x
+  focus
+    rw [p, h', Subst.elementary_spec₁]
+  focus
+    rw [Subst.elementary_spec₂]
+    exact p
+
 private theorem unify_variable_of_not_in_vehicle {x : β} {u : Term α β}
-  (h₁ : Term.Var x ≠ u) (h₂ : ¬ x ∈ (𝒱 u : Fintype β)) : P ((Term.Var x), u) := by
-  apply Or.inr ∘ Exists.intro (Subst.elementary h₁)
+  (h : ¬ x ∈ (𝒱 u : Fintype β)) : P ((Term.Var x), u) := by
+  have x_ne_u : Term.Var x ≠ u := by
+    intro h'
+    rw [← h'] at h
+    apply h
+    simp [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem]
+  apply Or.inr ∘ Exists.intro (Subst.elementary x_ne_u)
   apply And.intro (mgu_of_unifies_and_most_general _ _)
     (And.intro _ (And.intro _ _))
   focus
-    rw [Subst.elementary_spec₁ h₁]
+    rw [Subst.elementary_spec₁ x_ne_u]
     rw [elementary_on_not_in_vehicle]
-    exact h₂
+    exact h
   focus
     intro θ hθ
     apply Exists.intro θ
-    apply Subst.ext.2
-    intro z
-    rw [← RAction.smul_mul]
-    byCases p : z = x
-    focus
-      rw [p, hθ, Subst.elementary_spec₁]
-    focus
-      rw [Subst.elementary_spec₂]
-      exact p
+    exact Eq.symm <| prepend_elementary_on_variable_unifier x_ne_u hθ
   focus
     rw [vehicle_elementary]
     apply included_union_iff.2 (Or.inr included_refl)
   focus
     apply elementary_vanishing
-    exact h₂
+    exact h
   focus
     rw [elementary_carrier]
     exact included_union_iff.2 (Or.inl included_refl)
 
+-- Clearly not well written, I sould automate this...
+-- But since I don't do a lot of calculus in the proofs here, I don't feel the need
+-- to spend time one writing tactics for numbers.
 private theorem variable_stranger_of_in_vehicle {x : β} {u : Term α β}
-  (h₁ : Term.Var x ≠ u) (h₂ : x ∈ (𝒱 u : Fintype β)) : P ((Term.Var x), u) := by
-  apply Or.inl
+  (h₁ : mass u ≠ 0) (h₂ : x ∈ (𝒱 u : Fintype β)) :
+  strangers (Subst α β) (Term.Var x) u := by
+  have x_ne_u : Term.Var x ≠ u := by
+    intro h
+    apply h₁
+    rw [← h]
+    rfl
   rw [strangers_iff_no_unifier]
-  admit
+  intro θ h
+  have p := prepend_elementary_on_variable_unifier x_ne_u h
+  conv at h => rhs; rw [p]
+  have p' := mass_lower_bound x_ne_u u θ
+  conv at p' => rhs; rw [← p]
+  have p'' := Nat.mul_le_mul_right (mass (u • θ))
+    <| Nat.one_le_of_ne_zero
+    <| weight_nonzero_of_mem_vehicle h₂
+  rw [Nat.one_mul] at p''
+  have p₄ := Nat.le_trans p' p''
+  have p₅ : mass u = 0 := by
+    apply byContradiction
+    intro h
+    have p := Nat.lt_of_succ_le <| Nat.one_le_of_ne_zero h
+    have p' := Nat.add_lt_add_right p (weight x u * mass (u • θ))
+    have p''' := Nat.lt_of_lt_of_le p' p₄
+    rw [Nat.zero_add] at p'''
+    exact False.elim <| Nat.not_lt_self _ p'''
+  exact h₁ p₅
+
+private theorem unify_mass_nonzero (x : β) {u : Term α β} (h : mass u ≠ 0) :
+  P ((Term.Var x), u) := by
+  byCases p : x ∈ (𝒱 u : Fintype β)
+  exact Or.inl <| variable_stranger_of_in_vehicle h p
+  exact unify_variable_of_not_in_vehicle p
+
+private theorem unify_cst (x : β) (c : α) : P (Term.Var x, Term.Cst c) := by
+  have p' : (Term.Var x : Term α β) ≠ Term.Cst c := by
+    intro h
+    apply Term.noConfusion h
+  apply unify_variable_of_not_in_vehicle
+  simp [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem, not_mem_empty]
+
+private theorem unify_cons (c : α) (l r : Term α β) : P (Term.Cst c, Term.Cons l r) := by
+  apply Or.inl
+  apply strangers_iff_no_unifier.2
+  intro ⟨ θ, _ ⟩ h
+  apply Term.noConfusion h
 
 private def robinsonR (x : Term α β × Term α β)
   (rh : ∀ y, rel.rel y x → P y) : P x := match x with
@@ -821,6 +978,15 @@ private def robinsonR (x : Term α β × Term α β)
             cons_vanishing θ_vehicle φ_vehicle θ_vanishing φ_vanishing,
             cons_carrier_in θ_vehicle φ_vehicle θ_vanishing φ_vanishing
               θ_carrier φ_carrier ⟩
+  | (Term.Var x, Term.Cons l r) => by
+    apply unify_mass_nonzero
+    apply Ne.symm ∘ Nat.ne_of_lt
+      <| Nat.lt_of_lt_of_le (Nat.zero_lt_one) (Nat.le_add_left _ _)
+  | (Term.Cons l r, Term.Var x) => by
+    rw [P_comm]
+    apply unify_mass_nonzero
+    apply Ne.symm ∘ Nat.ne_of_lt
+      <| Nat.lt_of_lt_of_le (Nat.zero_lt_one) (Nat.le_add_left _ _)
   | (Term.Var x, Term.Var y) => by
     byCases p : x = y
     focus
@@ -845,7 +1011,7 @@ private def robinsonR (x : Term α β × Term α β)
     focus
       have p' : (Term.Var x : Term α β) ≠ Term.Var y :=
         λ h => p <| Term.noConfusion h id
-      apply unify_variable_of_not_in_vehicle p'
+      apply unify_variable_of_not_in_vehicle
       simp [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem, p]
   | (Term.Cst a, Term.Cst b) => by
     byCases p : a = b
@@ -874,7 +1040,16 @@ private def robinsonR (x : Term α β × Term α β)
       rw [strangers_iff_no_unifier]
       exact λ θ h => p <| match θ with
       | ⟨ _, _ ⟩ => Term.noConfusion h id
-  | _ => sorry
+  | (Term.Cst c, Term.Cons l r) => by
+    apply unify_cons
+  | (Term.Cst c, Term.Var x) => by
+    rw [P_comm]
+    apply unify_cst
+  | (Term.Cons l r, Term.Cst c) => by
+    rw [P_comm]
+    apply unify_cons
+  | (Term.Var x, Term.Cst c) => by
+    apply unify_cst
 
 /-
 -- robinson._unary is undefined :'(
