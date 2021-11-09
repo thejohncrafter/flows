@@ -250,7 +250,7 @@ theorem included_refl {a : Fintype α} : a ⊆ a := sorry
 theorem included_trans {a b c : Fintype α} (h : a ⊆ b) (h' : b ⊆ c) : a ⊆ c := by
   admit
 
-theorem not_mem_empty {a : α} : ¬ a ∈ (∅ : Fintype α) := sorry
+theorem not_mem_empty (a : α) : ¬ a ∈ (∅ : Fintype α) := sorry
 
 theorem empty_included (a : Fintype α) : ∅ ⊆ a := sorry
 

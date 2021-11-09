@@ -159,28 +159,68 @@ def carrier_spec {θ : Subst α β} {y : β} :
       apply epsilon_spec hθ
 
 theorem is_one_iff_empty_carrier {θ : Subst α β} : θ = 1 ↔ carrier θ = ∅ := by
-  admit
+  apply Iff.intro
+  focus
+    intro h
+    rw [h, Fintype.ext]
+    intro x
+    apply Iff.intro _ (False.elim ∘ Fintype.not_mem_empty _)
+    rw [carrier_spec]
+    exact λ h => False.elim <| h rfl
+  focus
+    intro h
+    rw [Subst.ext]
+    intro x
+    apply byContradiction
+    intro h'
+    apply Fintype.not_mem_empty x
+    rw [← h, carrier_spec]
+    exact h'
+
+theorem carrier_one : carrier (1 : Subst α β) = ∅ :=
+  is_one_iff_empty_carrier.1 rfl
 
 theorem is_one_iff_not_modifying (θ : Subst α β) :
-  θ = 1 ↔ ∀ x, (Term.Var x : Term α β) • θ = Term.Var x := by
-  admit
+  θ = 1 ↔ ∀ x, (Term.Var x : Term α β) • θ = Term.Var x := Subst.ext
 
 theorem not_one_iff_modifying (θ : Subst α β) :
   θ ≠ 1 ↔ ∃ x, (Term.Var x : Term α β) • θ ≠ Term.Var x := by
-  admit
+  apply Iff.intro
+  focus
+    intro h
+    apply byContradiction
+    intro h'
+    apply h
+    rw [Subst.ext]
+    intro x
+    apply byContradiction
+    intro h''
+    exact h' ⟨ x, h'' ⟩
+  focus
+    intro ⟨ x, h ⟩ h'
+    rw [is_one_iff_not_modifying] at h'
+    exact h (h' x)
 
 theorem elementary_carrier {x : β} {u : Term α β} {h : Term.Var x ≠ u} :
   carrier (Subst.elementary h : Subst α β) = Fintype.mk [x] := by
   apply Fintype.ext.2
-  intro a
+  intro y
   rw [carrier_spec]
   apply Iff.intro
   focus
-    admit
+    byCases p : y = x
+    focus
+      rw [p]
+      intro _
+      simp [Fintype.mem_mk_iff, List.mem]
+    focus
+      intro h'
+      apply False.elim ∘ h'
+      simp [Subst.elementary, RSMul.smul, map_reduce, p]
   focus
     rw [Fintype.mem_mk_iff]
     intro p
-    rw [show a = x by simp_all [List.mem], Subst.elementary_spec₁]
+    rw [show y = x by simp_all [List.mem], Subst.elementary_spec₁]
     exact Ne.symm h
 
 theorem carrier_cons (θ φ : Subst α β) : carrier (θ * φ) ⊆ carrier θ ∪ carrier φ := by
@@ -244,7 +284,13 @@ theorem vehicle_cons {u v : Term α β} :
   (𝒱 (Term.Cons u v) : Fintype β) = 𝒱 u ∪ 𝒱 v := rfl
 
 theorem vehicle_one : 𝒱 (1 : Subst α β) = (∅ : Fintype β) := by
-  admit
+  rw [Fintype.ext]
+  intro x
+  apply Iff.intro _ (λ h => False.elim h)
+  simp only [HasVehicle.vehicle, Subst.vehicle]
+  rw [Fintype.mem_image_iff, carrier_one]
+  intro ⟨ _, p, _ ⟩
+  exact Fintype.not_mem_empty _ p
 
 theorem vehicle_elementary {x : β} {u : Term α β} (h : Term.Var x ≠ u) :
   𝒱 (Subst.elementary h : Subst α β) = (𝒱 u : Fintype β) := by
@@ -334,7 +380,10 @@ theorem vehicle_on_comp₁ (θ φ : Subst α β) :
   (Fintype.included_union_iff.2 ∘ Or.inr <| Fintype.included_refl)
 
 /- A hacky lemma, would be best with a tactic. -/
-private theorem flush_union_left (a : Fintype β) : ∀ b c, c ∪ b ∪ a = c ∪ a ∪ b := sorry
+private theorem flush_union_left (a : Fintype β) {b c : Fintype β} :
+  c ∪ b ∪ a = c ∪ a ∪ b := by
+  simp only [Fintype.union_assoc]
+  rw [Fintype.union_comm a b]
 
 theorem cons_vehicle_in {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
   (h₁ : (𝒱 θ : Fintype β) ⊆ 𝒱 l₁ ∪ 𝒱 l₂)
@@ -577,7 +626,15 @@ section
 theorem lex_of_le_and_lt {α β : Type u}
   {ha : WellFoundedRelation α} {hb : WellFoundedRelation β}
   {a₁ a₂ : α} {b₁ b₂ : β} (h₁ : ha.rel a₁ a₂ ∨ a₁ = a₂) (h₂ : hb.rel b₁ b₂) :
-  (Prod.lex ha hb).rel (a₁, b₁) (a₂, b₂) := sorry
+  (Prod.lex ha hb).rel (a₁, b₁) (a₂, b₂) := by
+  cases h₁ with
+  | inl h₁ =>
+    apply Prod.Lex.left
+    exact h₁
+  | inr h₁ =>
+    rw [h₁]
+    apply Prod.Lex.right
+    exact h₂
 
 end
 
@@ -585,7 +642,9 @@ section
 
 variable {α β : Type u}
 
-private theorem flush_add_left (a : Nat) {b c : Nat} : b + c + a = b + a + c := sorry
+private theorem flush_add_left (a : Nat) {b c : Nat} : b + c + a = b + a + c := by
+  simp only [Nat.add_assoc]
+  rw [Nat.add_comm a c]
 
 theorem mass_lower_bound {x : β} {v : Term α β} (h : Term.Var x ≠ v) (u : Term α β)
   (θ : Subst α β) : mass u + weight x u * mass (v • θ) ≤ mass (u • (Subst.elementary h * θ)) := by
@@ -615,7 +674,7 @@ theorem mass_lower_bound {x : β} {v : Term α β} (h : Term.Var x ≠ v) (u : T
 theorem weight_nonzero_of_mem_vehicle {x : β} {u : Term α β} (h : x ∈ (𝒱 u : Fintype β)) :
   weight x u ≠ 0 := by
   induction u with
-  | Cst _ => exact False.elim <| Fintype.not_mem_empty h
+  | Cst _ => exact False.elim <| Fintype.not_mem_empty _ h
   | Var y =>
     suffices p : x = y by
       rw [p]
