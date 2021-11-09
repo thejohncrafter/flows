@@ -19,17 +19,32 @@ theorem or_assoc {p q r : Prop} : (p ∨ q) ∨ r ↔ p ∨ q ∨ r := Iff.intro
 theorem Prod.eq {α : Type u} {a b c d : α} (h₁ : a = c) (h₂ : b = d) :
   (a, b) = (c, d) := h₁ ▸ h₂ ▸ rfl
 
-theorem Nat.le_of_le_of_le {a b c d : Nat} (h : a ≤ b) (h' : c ≤ d) : a + c ≤ b + d := sorry
+theorem Nat.le_of_le_of_le {a b c d : Nat} (h : a ≤ b) (h' : c ≤ d) : a + c ≤ b + d :=
+  Nat.le_trans (Nat.add_le_add_left h' _) (Nat.add_le_add_right h _)
 
-theorem Nat.add_ne_zero_of_l_ne_zero {a b : Nat} (h : a ≠ 0) : a + b ≠ 0 := sorry
+theorem Nat.add_ne_zero_of_r_ne_zero {a b : Nat} (h : b ≠ 0) : a + b ≠ 0 :=
+  λ h' => match b with
+  | 0 => h rfl
+  | b + 1 => succ_ne_zero (a + b) h'
 
-theorem Nat.add_ne_zero_of_r_ne_zero {a b : Nat} (h : b ≠ 0) : a + b ≠ 0 := sorry
+theorem Nat.add_ne_zero_of_l_ne_zero {a b : Nat} (h : a ≠ 0) : a + b ≠ 0 := by
+  rw [Nat.add_comm]
+  exact add_ne_zero_of_r_ne_zero h
 
-theorem Nat.one_le_of_ne_zero {a : Nat} (h : a ≠ 0) : 1 ≤ a := sorry
+theorem Nat.one_le_of_ne_zero {a : Nat} (h : a ≠ 0) : 1 ≤ a := match a with
+  | 0 => False.elim <| h rfl
+  | a + 1 => Nat.succ_le_succ (Nat.zero_le _)
 
-theorem Nat.ne_of_lt {a b : Nat} (h : a < b) : a ≠ b := sorry
+theorem Nat.not_lt_self (a : Nat) : ¬ a < a := by
+  intro h
+  induction a with
+  | zero => simp [Nat.lt] at h
+  | succ a rh => exact rh <| Nat.lt_of_succ_lt_succ h
 
-theorem Nat.not_lt_self (a : Nat) : ¬ a < a := sorry
+theorem Nat.ne_of_lt {a b : Nat} (h : a < b) : a ≠ b := by
+  intro h'
+  rw [h'] at h
+  exact not_lt_self _ h
 
 def List.mem (a : α) : (l : List α) → Prop
   | [] => False
@@ -87,6 +102,54 @@ theorem List.mem_map_iff_image {α β : Type u} {y : β} {f : α → β} {l : Li
         exact ⟨ Or.inr h.1, h.2 ⟩
   focus
     exact λ ⟨ x, ⟨ h₁, h₂ ⟩ ⟩ => h₂ ▸ List.mem_map h₁
+
+theorem List.filter_eq {α : Type u} {f : α → Bool} {l : List α} {x : α} :
+  filter f (x :: l) = if f x then x :: filter f l else filter f l := by
+  admit
+
+theorem List.mem_filter {α : Type u} {f : α → Bool} {l : List α} {x : α} :
+  List.mem x (List.filter f l) ↔ List.mem x l ∧ f x := by
+  induction l with
+  | nil => simp [mem]
+  | cons y t rh =>
+    byCases p : f y
+    focus
+      byCases p' : x = y
+      focus
+        rw [p']
+        rw [p'] at rh
+        rw [List.filter_eq]
+        simp [mem, filter, filterAux, p]
+      focus
+        rw [List.filter_eq]
+        simp only [p, mem, p', false_or]
+        rw [← rh]
+        simp [mem]
+    focus
+      have p : f y = false := eq_false_of_ne_true p
+      apply Iff.intro
+      focus
+        intro h
+        suffices p : mem x (filter f t) ∧ x ≠ y by
+          simp [mem, p, rh.1 p.1]
+        apply And.intro
+        focus
+          simp_all [mem, filter, filterAux]
+        focus
+          suffices h : f x by
+            intro h'
+            rw [h'] at h
+            apply Bool.noConfusion (Eq.trans p.symm h)
+          simp_all [mem, filter, filterAux]
+      focus
+        simp [mem, filter, filterAux, p]
+        intro ⟨ hl, hr ⟩
+        apply rh.2 (And.intro _ hr)
+        cases hl with
+        | inl hl =>
+          rw [hl] at hr
+          apply Bool.noConfusion (Eq.trans p.symm hr)
+        | inr hl => exact hl
 
 def List.included {α : Type u} (l₁ l₂ : List α) :=
   ∀ a, List.mem a l₁ → List.mem a l₂
@@ -172,7 +235,7 @@ theorem mem_mk_iff {l : List α} {x : α} : x ∈ Fintype.mk l ↔ List.mem x l 
     simp [flip] at h'
     rw [← h']
     rfl
-  simp [mem, mk, Quotient.mk]
+  rfl
 
 def empty : Fintype α := mk []
 
@@ -185,7 +248,16 @@ theorem not_empty_iff (a : α) : ¬ a ∈ (∅ : Fintype α) := by
   intro _; assumption
 
 theorem ext {x y : Fintype α} : x = y ↔ ∀ a : α, a ∈ x ↔ a ∈ y := by
-  admit
+  apply @Quotient.inductionOn₂ _ _ _ _
+    (λ x y : Fintype α => x = y ↔ ∀ a : α, a ∈ x ↔ a ∈ y) _ _
+  intro l₁ l₂
+  apply Iff.intro
+  focus
+    intro h _
+    rw [h]
+    exact Iff.intro id id
+  focus
+    exact λ h => Quotient.sound h
 
 def union : Fintype α → Fintype α → Fintype α := Quotient.lift₂
   (λ l₁ l₂ => Fintype.mk (List.append l₁ l₂)) <| by
@@ -225,63 +297,160 @@ def without [∀ (a : α) (x : Fintype α), Decidable (a ∈ x)] : Fintype α �
   Quotient.lift (λ l x => mk <| List.filter (λ a => ¬ a ∈ x) l) <| by
   intro l₁ l₂ h
   funext a
-  -- Double inclusion ?
-  admit
+  rw [Fintype.ext]
+  intro x
+  suffices p : ∀ l₁ l₂ (x : α), (List.mem x l₁ → List.mem x l₂) →
+    List.mem x (List.filter (λ b => ¬ b ∈ a) l₁)
+    → List.mem x (List.filter (λ b => ¬ b ∈ a) l₂) by
+    apply Iff.intro
+    focus
+      apply p
+      rw [h]
+      exact id
+    focus
+      apply p
+      rw [h]
+      exact id
+  simp only [List.mem_filter]
+  intro l₁ l₂ x h ⟨ hl, hr ⟩
+  exact ⟨ (h hl), hr ⟩
 
 instance [∀ (a : α) (x : Fintype α), Decidable (a ∈ x)] : HasWithout (Fintype α) where
   without := without
 
-def included : Fintype α → Fintype α → Prop :=
-  Quotient.lift₂ (λ l₁ l₂ => List.included l₁ l₂) <| by
-  intro _ _ _ _ h₁ h₂
-  apply propext
-  apply Iff.intro
-  intro h a; rw [← h₁ a, ← h₂ a]; exact h a
-  intro h a; rw [h₁ a, h₂ a]; exact h a
+def included (x y : Fintype α) := ∀ a : α, a ∈ x → a ∈ y
 
 instance : HasIncluded (Fintype α) where
   included := included
 
-theorem included_iff (x y : Fintype α) : x ⊆ y ↔ ∀ a : α, a ∈ x → a ∈ y := by
-  admit
+theorem included_refl {a : Fintype α} : a ⊆ a := λ _ => id
 
-theorem included_refl {a : Fintype α} : a ⊆ a := sorry
+theorem included_trans {a b c : Fintype α} (h : a ⊆ b) (h' : b ⊆ c) : a ⊆ c := λ _ => h' _ ∘ h _
 
-theorem included_trans {a b c : Fintype α} (h : a ⊆ b) (h' : b ⊆ c) : a ⊆ c := by
-  admit
+theorem not_mem_empty (a : α) : ¬ a ∈ (∅ : Fintype α) := by
+  suffices p : ¬ a ∈ (mk [] : Fintype α) from p
+  rw [mem_mk_iff]
+  simp [List.mem]
 
-theorem not_mem_empty (a : α) : ¬ a ∈ (∅ : Fintype α) := sorry
-
-theorem empty_included (a : Fintype α) : ∅ ⊆ a := sorry
+theorem empty_included (a : Fintype α) : ∅ ⊆ a := λ _ => False.elim ∘ not_mem_empty _
 
 theorem union_on_included {a b c d : Fintype α}
   (h₁ : a ⊆ b) (h₂ : c ⊆ d) : a ∪ c ⊆ b ∪ d := by
-  admit
+  intro x
+  simp only [mem_union_iff]
+  exact λ h => match h with
+  | Or.inl h => Or.inl <| h₁ _ h
+  | Or.inr h => Or.inr <| h₂ _ h
 
-theorem union_included_iff {a b c : Fintype α} : a ∪ b ⊆ c ↔ a ⊆ c ∧ b ⊆ c := sorry
+theorem union_included_iff {a b c : Fintype α} : a ∪ b ⊆ c ↔ a ⊆ c ∧ b ⊆ c := by
+  apply Iff.intro
+  focus
+    intro h
+    apply And.intro
+      <;> apply included_trans _ h
+      <;> intro x h
+      <;> rw [mem_union_iff]
+    apply Or.inl; assumption
+    apply Or.inr; assumption
+  focus
+    intro h x
+    rw [mem_union_iff]
+    exact λ h' => match h' with
+    | Or.inl h' => h.1 _ h'
+    | Or.inr h' => h.2 _ h'
 
-theorem included_union_iff {a b c : Fintype α} : a ⊆ b ∪ c ↔ a ⊆ b ∨ a ⊆ c := sorry
+theorem included_union_l {a c : Fintype α} (b : Fintype α) (h : a ⊆ c) : a ⊆ b ∪ c := by
+  intro x h'
+  rw [mem_union_iff]
+  exact Or.inr <| h _ h'
 
-theorem mem_of_subset_mem {x y : Fintype α} {a : α} (h : x ⊆ y) : a ∈ x → a ∈ y := sorry
+theorem included_union_r {a b : Fintype α} (c : Fintype α) (h : a ⊆ b) : a ⊆ b ∪ c := by
+  intro x h'
+  rw [mem_union_iff]
+  exact Or.inl <| h _ h'
 
 theorem not_mem_of_superset_not_mem {x y : Fintype α} {a : α} (h : x ⊆ y) :
-  ¬ a ∈ y → ¬ a ∈ x := contrapose (mem_of_subset_mem h)
+  ¬ a ∈ y → ¬ a ∈ x := contrapose (h _)
 
-theorem mem_iff_singleton_included {x : Fintype α} {a : α} : a ∈ x ↔ (Fintype.mk [a]) ⊆ x := sorry
+theorem mem_iff_singleton_included {x : Fintype α} {a : α} : a ∈ x ↔ (Fintype.mk [a]) ⊆ x := by
+  apply Iff.intro
+  focus
+    intro h y h'
+    suffices p : y = a by rw [p]; exact h
+    simp_all [mem_mk_iff, List.mem]
+  focus
+    intro h
+    specialize h a
+    simp_all [mem_mk_iff, List.mem]
+
+theorem mem_without_iff {x y : Fintype α} {a : α} : a ∈ x \ y ↔ a ∈ x ∧ ¬ a ∈ y := by
+  apply @Quotient.inductionOn _ _
+    (λ x : Fintype α => a ∈ x \ y ↔ a ∈ x ∧ ¬ a ∈ y) x
+  intro l
+  suffices p : a ∈ mk l \ y ↔
+    List.mem a (List.filter (λ b => ¬ b ∈ y) l) by
+    simp only [mk] at p
+    rw [p]
+    rw [List.mem_filter, show Quotient.mk l = mk l from rfl, mem_mk_iff]
+    rw [show decide ¬ a ∈ y = true ↔ ¬ a ∈ y from Iff.intro of_decide_eq_true decide_eq_true]
+    exact Iff.intro id id
+  exact Iff.intro id id
 
 theorem not_mem_iff_in_without {x : Fintype α} {a : α} :
-  ¬ a ∈ x ↔ x ⊆ x \ Fintype.mk [a] := sorry
+  ¬ a ∈ x ↔ x ⊆ x \ Fintype.mk [a] := by
+  apply @Quotient.inductionOn _ _
+    (λ x : Fintype α => ¬ a ∈ x ↔ x ⊆ x \ Fintype.mk [a]) x
+  intro l
+  simp only [mem_mk_iff, HasIncluded.included, included]
+  apply Iff.intro
+  focus
+    intro h b h'
+    suffices p : List.mem b (List.filter (λ c => ¬ c ∈ mk [a]) l) from p
+    rw [List.mem_filter]
+    apply And.intro h'
+    apply decide_eq_true
+    intro h''
+    apply h
+    suffices p : a = b by rw [p]; exact h'
+    simp_all [mem_mk_iff, List.mem]
+  focus
+    intro h h'
+    specialize h a h'
+    suffices p : List.mem a (List.filter (λ c => ¬ c ∈ mk [a]) l) by
+      rw [List.mem_filter] at p
+      apply of_decide_eq_true p.2
+      simp [mem_mk_iff, List.mem]
+    exact h
 
 theorem included_without_of_included {a b: Fintype α} (c : Fintype α) (h : a ⊆ b) :
-  a \ c ⊆ b \ c := sorry
+  a \ c ⊆ b \ c := by
+  intro x
+  simp only [mem_without_iff]
+  exact λ ⟨ hl, hr ⟩ => And.intro (h _ hl) hr
 
-theorem union_comm (a b : Fintype α) : a ∪ b = b ∪ a := sorry
+theorem union_comm (a b : Fintype α) : a ∪ b = b ∪ a := by
+  rw [ext]
+  intro x
+  simp only [mem_union_iff]
+  apply Iff.intro
+    <;> intro h
+    <;> cases h
+    <;> first
+      | apply Or.inl; assumption
+      | apply Or.inr; assumption
 
-theorem union_idempotent (a : Fintype α) : a ∪ a = a := sorry
+theorem union_idempotent (a : Fintype α) : a ∪ a = a := by
+  rw [ext]
+  intro x
+  rw [mem_union_iff]
+  apply Iff.intro
+  intro h; cases h <;> assumption
+  exact λ h => Or.inl h
 
-theorem union_idempotent' (a b : Fintype β) : a ∪ b ∪ b = a ∪ b := sorry
-
-theorem different_if_not_same_element {x y : Fintype β} {a : β} (h₁ : ¬ a ∈ x) (h₂ : a ∈ y) : x ≠ y := sorry
+theorem different_if_not_same_element {x y : Fintype β} {a : β} (h₁ : ¬ a ∈ x) (h₂ : a ∈ y) : x ≠ y := by
+  intro h
+  rw [ext] at h
+  exact h₁ <| (h a).2 h₂
 
 def image {β : Type u} (f : α → Fintype β) : Fintype α → Fintype β :=
   Quotient.lift (λ l => List.foldr (λ a x => f a ∪ x) ∅ l) <| by
@@ -402,14 +571,5 @@ theorem sum_finite {α β : Type u} (h₁ : finite α) (h₂ : finite β) : fini
   | Sum.inr b => Or.inr <| List.mem_map <| h₂.2 b
 
 end Sums
-
-section Lists
-
-def List.included_wfRel {α : Type u} : WellFoundedRelation (List α) where
-  rel := List.included
-  wf := by
-    admit
-
-end Lists
 
 end Finite

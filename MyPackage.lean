@@ -224,7 +224,6 @@ theorem elementary_carrier {x : β} {u : Term α β} {h : Term.Var x ≠ u} :
     exact Ne.symm h
 
 theorem carrier_cons (θ φ : Subst α β) : carrier (θ * φ) ⊆ carrier θ ∪ carrier φ := by
-  rw [Fintype.included_iff]
   intro x
   rw [Fintype.mem_union_iff]
   simp only [carrier_spec]
@@ -324,13 +323,15 @@ theorem vehicle_on_image {θ : Subst α β} {A : Fintype β}
     | Var x =>
       byCases h : (Term.Var x : Term α β) • θ = Term.Var x
       focus
-        apply Fintype.included_union_iff.2 ∘ Or.inr
+        apply Fintype.included_union_l
         rw [h]
         exact Fintype.included_refl
       focus
-        apply Fintype.included_union_iff.2 ∘ Or.inl
+        apply Fintype.included_union_r
         apply Fintype.included_trans _ h₁
-        exact Fintype.in_image_of_is_image <| carrier_spec.2 h
+        intro y h'
+        apply Fintype.in_image_of_is_image <| carrier_spec.2 h
+        exact h'
     | Cons l r hl hr =>
       rw [subst_cons]
       simp only [Term.vehicle]
@@ -366,24 +367,31 @@ theorem vehicle_on_comp {θ φ : Subst α β} {A : Fintype β}
       rw [← RAction.smul_mul, hθ, hφ]
     rw [hθ]
     apply Fintype.included_trans _ h₂
-    exact Fintype.in_image_of_is_image <| carrier_spec.2 hφ
+    intro y h'
+    apply Fintype.in_image_of_is_image <| carrier_spec.2 hφ
+    exact h'
   focus
     apply vehicle_on_image_contained h₂
-    -- The pattern of the two following lines occurs often.
+    -- The pattern of the four following lines occurs often.
     -- Make it a lemma ?
     apply Fintype.included_trans _ h₁
-    exact Fintype.in_image_of_is_image <| carrier_spec.2 hθ
+    intro y h'
+    apply Fintype.in_image_of_is_image <| carrier_spec.2 hθ
+    exact h'
 
 theorem vehicle_on_comp₁ (θ φ : Subst α β) : 
   (𝒱 (θ * φ) : Fintype β) ⊆ 𝒱 θ ∪ 𝒱 φ := vehicle_on_comp
-  (Fintype.included_union_iff.2 ∘ Or.inl <| Fintype.included_refl)
-  (Fintype.included_union_iff.2 ∘ Or.inr <| Fintype.included_refl)
+  (Fintype.included_union_r _ <| Fintype.included_refl)
+  (Fintype.included_union_l _ <| Fintype.included_refl)
 
-/- A hacky lemma, would be best with a tactic. -/
+/- Two hacky lemmas, would be best with a tactic. -/
 private theorem flush_union_left (a : Fintype β) {b c : Fintype β} :
   c ∪ b ∪ a = c ∪ a ∪ b := by
   simp only [Fintype.union_assoc]
   rw [Fintype.union_comm a b]
+
+private theorem union_idempotent' (a b : Fintype β) : a ∪ b ∪ b = a ∪ b := by
+  admit
 
 theorem cons_vehicle_in {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
   (h₁ : (𝒱 θ : Fintype β) ⊆ 𝒱 l₁ ∪ 𝒱 l₂)
@@ -401,7 +409,7 @@ theorem cons_vehicle_in {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
       conv => rw [Fintype.union_assoc]; rhs; rw [Fintype.union_comm]
       rw [← Fintype.union_assoc]
     rw [Fintype.union_assoc]
-    apply Fintype.included_union_iff.2 ∘ Or.inl
+    apply Fintype.included_union_r
     exact Fintype.included_refl
   focus
     apply Fintype.included_trans h₂
@@ -409,18 +417,18 @@ theorem cons_vehicle_in {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
       ⊆ 𝒱 l₁ ∪ 𝒱 l₂ ∪ 𝒱 r₁ ∪ (𝒱 l₁ ∪ 𝒱 l₂ ∪ 𝒱 r₂) by
       apply Fintype.included_trans h
       simp only [← Fintype.union_assoc]
-      -- Let's use our hacky lemma
+      -- Let's use our hacky lemmas
       simp only [flush_union_left (𝒱 l₂)]
       simp only [flush_union_left (𝒱 l₁)]
-      simp only [Fintype.union_idempotent, Fintype.union_idempotent']
+      simp only [Fintype.union_idempotent, union_idempotent']
       exact Fintype.included_refl
     apply Fintype.union_on_included
       <;> apply vehicle_on_image_contained
       <;> first
         | apply Fintype.included_trans h₁
-          apply Fintype.included_union_iff.2 ∘ Or.inl
+          apply Fintype.included_union_r
           exact Fintype.included_refl
-        | apply Fintype.included_union_iff.2 ∘ Or.inr
+        | apply Fintype.included_union_l
           exact Fintype.included_refl
 
 theorem elementary_on_not_in_vehicle {x : β} {u v : Term α β} (h : Term.Var x ≠ u)
@@ -458,10 +466,7 @@ theorem vanishing_on_term {θ : Subst α β} (h₁ : vanishing θ)
   | Cons l r hl hr =>
     rw [subst_cons]
     intro h
-    rw [Fintype.mem_iff_singleton_included] at h
-    let h := Fintype.included_union_iff.1 h
-    simp only [← Fintype.mem_iff_singleton_included] at h
-    cases h with
+    cases (Fintype.mem_union_iff _ _ _).1 h with
     | inl h => exact hl h
     | inr h => exact hr h
 
@@ -549,7 +554,7 @@ theorem cons_carrier_in {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
   apply Fintype.union_included_iff.2 (And.intro _ _)
   focus
     apply Fintype.included_trans h₅
-    apply Fintype.included_union_iff.2 ∘ Or.inl
+    apply Fintype.included_union_r
     exact Fintype.included_refl
   focus
     apply Fintype.included_trans h₆
@@ -558,12 +563,12 @@ theorem cons_carrier_in {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
         | apply Fintype.included_trans (vehicle_on_image h₁ _)
           apply Fintype.union_included_iff.2 (And.intro _ _)
           focus
-            apply Fintype.included_union_iff.2 ∘ Or.inl
+            apply Fintype.included_union_r
             exact Fintype.included_refl
           focus
-            apply Fintype.included_union_iff.2 ∘ Or.inr
-    exact Fintype.included_union_iff.2 ∘ Or.inl <| Fintype.included_refl
-    exact Fintype.included_union_iff.2 ∘ Or.inr <| Fintype.included_refl
+            apply Fintype.included_union_l
+    exact Fintype.included_union_r _ <| Fintype.included_refl
+    exact Fintype.included_union_l _ <| Fintype.included_refl
 
 end
 
@@ -777,7 +782,7 @@ private theorem decr_left (l₁ r₁ l₂ r₂ : Term α β) :
     simp only [vehicle_cons, ← Fintype.union_assoc]
     simp only [flush_union_left (𝒱 l₂)]
     rw [Fintype.union_assoc]
-    exact Fintype.included_union_iff.2 ∘ Or.inl <| Fintype.included_refl
+    exact Fintype.included_union_r _ <| Fintype.included_refl
   focus
         exact Prod.RProd.intro (mass_decr_l _ _) (mass_decr_l _ _)
 
@@ -800,7 +805,7 @@ private theorem decr_right (l₁ r₁ l₂ r₂ : Term α β) {θ : Subst α β}
       simp only [vehicle_cons, ← Fintype.union_assoc]
       simp only [flush_union_left (𝒱 l₂)]
       rw [Fintype.union_assoc]
-      exact Fintype.included_union_iff.2 ∘ Or.inr <| Fintype.included_refl
+      exact Fintype.included_union_l _ <| Fintype.included_refl
     focus
       exact Prod.RProd.intro (mass_decr_r _ _) (mass_decr_r _ _)
   focus
@@ -816,10 +821,10 @@ private theorem decr_right (l₁ r₁ l₂ r₂ : Term α β) {θ : Subst α β}
           apply Fintype.included_trans θ_vehicle
           simp only [← Fintype.union_assoc, flush_union_left (𝒱 l₂)]
           rw [Fintype.union_assoc]
-          apply Fintype.included_union_iff.2 ∘ Or.inl <| Fintype.included_refl
+          apply Fintype.included_union_r _ <| Fintype.included_refl
         focus
           simp only [← Fintype.union_assoc, ← flush_union_left (𝒱 r₁)]
-          apply Fintype.included_union_iff.2 ∘ Or.inr <| Fintype.included_refl
+          apply Fintype.included_union_l _ <| Fintype.included_refl
       focus
         apply Fintype.included_trans (vehicle_on_image Fintype.included_refl r₂)
         apply Fintype.union_included_iff.2 <| And.intro _ _
@@ -827,10 +832,10 @@ private theorem decr_right (l₁ r₁ l₂ r₂ : Term α β) {θ : Subst α β}
           apply Fintype.included_trans θ_vehicle
           simp only [← Fintype.union_assoc, flush_union_left (𝒱 l₂)]
           rw [Fintype.union_assoc]
-          apply Fintype.included_union_iff.2 ∘ Or.inl <| Fintype.included_refl
+          apply Fintype.included_union_r _ <| Fintype.included_refl
         focus
           simp only [← Fintype.union_assoc, ← flush_union_left (𝒱 r₂)]
-          apply Fintype.included_union_iff.2 ∘ Or.inr <| Fintype.included_refl
+          apply Fintype.included_union_l _ <| Fintype.included_refl
     focus
       let ⟨ x, hx ⟩ := (not_one_iff_modifying θ).1 h
       let not_in_r₁ := vanishing_on_term θ_vanishing hx r₁
@@ -882,13 +887,13 @@ private theorem unify_variable_of_not_in_vehicle {x : β} {u : Term α β}
     exact Eq.symm <| prepend_elementary_on_variable_unifier x_ne_u hθ
   focus
     rw [vehicle_elementary]
-    apply Fintype.included_union_iff.2 (Or.inr Fintype.included_refl)
+    apply Fintype.included_union_l _ <| Fintype.included_refl
   focus
     apply elementary_vanishing
     exact h
   focus
     rw [elementary_carrier]
-    exact Fintype.included_union_iff.2 (Or.inl Fintype.included_refl)
+    exact Fintype.included_union_r _ <| Fintype.included_refl
 
 -- Clearly not well written, I sould automate this...
 -- But since I don't do a lot of calculus in the proofs here, I don't feel the need
