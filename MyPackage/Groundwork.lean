@@ -19,6 +19,18 @@ theorem or_assoc {p q r : Prop} : (p ∨ q) ∨ r ↔ p ∨ q ∨ r := Iff.intro
 theorem Prod.eq {α : Type u} {a b c d : α} (h₁ : a = c) (h₂ : b = d) :
   (a, b) = (c, d) := h₁ ▸ h₂ ▸ rfl
 
+theorem Nat.le_of_le_of_le {a b c d : Nat} (h : a ≤ b) (h' : c ≤ d) : a + c ≤ b + d := sorry
+
+theorem Nat.add_ne_zero_of_l_ne_zero {a b : Nat} (h : a ≠ 0) : a + b ≠ 0 := sorry
+
+theorem Nat.add_ne_zero_of_r_ne_zero {a b : Nat} (h : b ≠ 0) : a + b ≠ 0 := sorry
+
+theorem Nat.one_le_of_ne_zero {a : Nat} (h : a ≠ 0) : 1 ≤ a := sorry
+
+theorem Nat.ne_of_lt {a b : Nat} (h : a < b) : a ≠ b := sorry
+
+theorem Nat.not_lt_self (a : Nat) : ¬ a < a := sorry
+
 def List.mem (a : α) : (l : List α) → Prop
   | [] => False
   | x :: t => a = x ∨ mem a t
@@ -232,6 +244,44 @@ instance : HasIncluded (Fintype α) where
 
 theorem included_iff (x y : Fintype α) : x ⊆ y ↔ ∀ a : α, a ∈ x → a ∈ y := by
   admit
+
+theorem included_refl {a : Fintype α} : a ⊆ a := sorry
+
+theorem included_trans {a b c : Fintype α} (h : a ⊆ b) (h' : b ⊆ c) : a ⊆ c := by
+  admit
+
+theorem not_mem_empty {a : α} : ¬ a ∈ (∅ : Fintype α) := sorry
+
+theorem empty_included (a : Fintype α) : ∅ ⊆ a := sorry
+
+theorem union_on_included {a b c d : Fintype α}
+  (h₁ : a ⊆ b) (h₂ : c ⊆ d) : a ∪ c ⊆ b ∪ d := by
+  admit
+
+theorem union_included_iff {a b c : Fintype α} : a ∪ b ⊆ c ↔ a ⊆ c ∧ b ⊆ c := sorry
+
+theorem included_union_iff {a b c : Fintype α} : a ⊆ b ∪ c ↔ a ⊆ b ∨ a ⊆ c := sorry
+
+theorem mem_of_subset_mem {x y : Fintype α} {a : α} (h : x ⊆ y) : a ∈ x → a ∈ y := sorry
+
+theorem not_mem_of_superset_not_mem {x y : Fintype α} {a : α} (h : x ⊆ y) :
+  ¬ a ∈ y → ¬ a ∈ x := contrapose (mem_of_subset_mem h)
+
+theorem mem_iff_singleton_included {x : Fintype α} {a : α} : a ∈ x ↔ (Fintype.mk [a]) ⊆ x := sorry
+
+theorem not_mem_iff_in_without {x : Fintype α} {a : α} :
+  ¬ a ∈ x ↔ x ⊆ x \ Fintype.mk [a] := sorry
+
+theorem included_without_of_included {a b: Fintype α} (c : Fintype α) (h : a ⊆ b) :
+  a \ c ⊆ b \ c := sorry
+
+theorem union_comm (a b : Fintype α) : a ∪ b = b ∪ a := sorry
+
+theorem union_idempotent (a : Fintype α) : a ∪ a = a := sorry
+
+theorem union_idempotent' (a b : Fintype β) : a ∪ b ∪ b = a ∪ b := sorry
+
+theorem different_if_not_same_element {x y : Fintype β} {a : β} (h₁ : ¬ a ∈ x) (h₂ : a ∈ y) : x ≠ y := sorry
 
 def image {β : Type u} (f : α → Fintype β) : Fintype α → Fintype β :=
   Quotient.lift (λ l => List.foldr (λ a x => f a ∪ x) ∅ l) <| by
