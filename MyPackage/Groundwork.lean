@@ -19,6 +19,11 @@ theorem or_assoc {p q r : Prop} : (p ∨ q) ∨ r ↔ p ∨ q ∨ r := Iff.intro
 theorem Prod.eq {α : Type u} {a b c d : α} (h₁ : a = c) (h₂ : b = d) :
   (a, b) = (c, d) := h₁ ▸ h₂ ▸ rfl
 
+theorem Nat.eq_of_le_of_le {a b : Nat} (h : a ≤ b) (h' : b ≤ a) : a = b :=
+  match Nat.eq_or_lt_of_le h with
+  | Or.inl p => p
+  | Or.inr p => False.elim <| Nat.not_le_of_gt p h'
+
 theorem Nat.le_of_le_of_le {a b c d : Nat} (h : a ≤ b) (h' : c ≤ d) : a + c ≤ b + d :=
   Nat.le_trans (Nat.add_le_add_left h' _) (Nat.add_le_add_right h _)
 
@@ -45,6 +50,58 @@ theorem Nat.ne_of_lt {a b : Nat} (h : a < b) : a ≠ b := by
   intro h'
   rw [h'] at h
   exact not_lt_self _ h
+
+theorem Nat.lt_of_not_le {a b : Nat} (h : ¬ a ≤ b) : b < a :=
+  match Nat.lt_or_ge b a with
+  | Or.inl h' => h'
+  | Or.inr h' => False.elim <| h h'
+
+theorem Nat.succ_pred_of_nonzero {n : Nat} (h : n ≠ 0) : succ (pred n) = n := by
+  revert h
+  cases n with
+  | zero => simp
+  | succ n => intro; rfl
+
+theorem Nat.lt_pred_of_succ_lt {n m : Nat} (h : succ n < m) : n < pred m := by
+  apply lt_of_succ_lt_succ
+  rw [succ_pred_of_nonzero]
+  exact h
+  intro h'
+  rw [h'] at h
+  exact not_lt_zero _ h
+
+theorem Nat.zero_lt_sub {n m : Nat} (h : n < m) : 0 < m - n := by
+  suffices p : ∀ k, n + k < m → k < m - n from p 0 h
+  suffices p : ∀ k, n < m → n + k < m → k < m - n from λ _ => p _ h
+  induction n with
+  | zero => intro k _ h; rw [Nat.zero_add] at h; exact h
+  | succ n rh =>
+    intro k h h'
+    rw [sub_succ]
+    rw [succ_add] at h'
+    exact lt_pred_of_succ_lt <| rh (lt_of_succ_lt h) (succ k) (lt_of_succ_lt h) h'
+
+theorem Nat.sub_add_self {n m : Nat} (h : m ≤ n) : n - m + m = n := by
+  induction m with
+  | zero => rfl
+  | succ m rh =>
+    rw [add_succ, sub_succ, ← succ_add]
+    byCases p : n - m = 0
+    focus
+      have p' := zero_lt_sub h
+      rw [p] at p'
+      exact False.elim <| Nat.not_lt_self _ p'
+    focus
+      rw [succ_pred_of_nonzero p]
+      apply rh
+      exact Nat.le_of_lt <| Nat.lt_of_lt_of_le (Nat.lt_succ_self _) h
+
+theorem Nat.lt_of_add_lt_add {n m : Nat} (k : Nat) (h : n + k < m + k) : n < m := by
+  induction k with
+  | zero => exact h
+  | succ k rh =>
+    apply rh ∘ lt_of_succ_lt_succ
+    simp_all [add_succ]
 
 def List.mem (a : α) : (l : List α) → Prop
   | [] => False
@@ -160,6 +217,181 @@ def List.concat_map {α β : Type u} (f : α → List β) : List α → List β
 
 end
 
+section /- Let's define the minimim of a nonempty set in `ℕ`... -/
+
+set_option codegen false
+
+private theorem rev_bounded_wf (M : Nat) : WellFounded λ m n => n < m ∧ n ≤ M ∧ m ≤ M := by
+  suffices p : WellFounded λ m n => M - m < M - n ∧ n ≤ M ∧ m ≤ M by
+    apply Subrelation.wf _ p
+    intro m n ⟨ h, nM, mM ⟩
+    apply And.intro _ ⟨ nM, mM ⟩
+    apply Nat.lt_of_add_lt_add (n + m)
+    conv => lhs; rw [Nat.add_comm n m, ← Nat.add_assoc]
+    rw [← Nat.add_assoc]
+    rw [Nat.sub_add_self nM, Nat.sub_add_self mM]
+    exact Nat.add_lt_add_left h _
+  suffices p : WellFounded λ m n : Nat => m < n by
+    let p := InvImage.wf (λ n => M - n) p
+    apply Subrelation.wf _ p
+    intro m n ⟨ h, _, _ ⟩
+    simp only [InvImage]
+    exact h
+  have p : (λ m n : Nat => m < n) = Nat.lt := by funext _ _; rfl
+  rw [p]
+  exact Nat.lt_wfRel.wf
+
+def set_min (P : Nat → Prop) (h : ∃ n, P n) : Nat :=
+  go 0
+  where
+    P' := λ n => ∃ k, k ≤ n ∧ P k
+    goF (n : Nat) (f : (m : Nat) → ¬ (∃ k, k ≤ n ∧ P k) ∧ m = n + 1 → Nat) : Nat :=
+      if h : ∃ k, k ≤ n ∧ P k then n else f (n + 1) ⟨ h, rfl ⟩
+    go := @WellFounded.fix Nat (λ _ => Nat) _ (match h with
+      | ⟨ M, hM ⟩ => by
+        suffices p : WellFounded λ m n => m = n + 1 ∧ m ≤ M by
+          apply Subrelation.wf _ p
+          intro n m ⟨ p, h ⟩
+          apply And.intro h
+          apply byContradiction
+          intro h'
+          apply p ⟨ M, _, hM ⟩
+          have h' := Nat.lt_of_not_le h'
+          rw [h] at h'
+          exact Nat.le_of_lt_succ h'
+        suffices p : WellFounded λ m n => n < m ∧ n ≤ M ∧ m ≤ M by
+          apply Subrelation.wf _ p
+          intro n m ⟨ h, h' ⟩
+          apply And.intro _ (And.intro _ h')
+          focus
+            rw [h]
+            exact Nat.lt_succ_self _
+          focus
+            apply Nat.le_trans (Nat.le_of_lt <| Nat.lt_succ_self m)
+            rw [← Nat.add_one, ← h]
+            exact h'
+        exact rev_bounded_wf _
+        ) goF
+
+private theorem go_eq (P : Nat → Prop) (h : ∃ n, P n) (n : Nat) (h' : ∀ k, k < n → ¬ P k) :
+  set_min.go P h n = if P n then n else set_min.go P h (n + 1) := by
+  simp only [set_min.go]
+  rw [WellFounded.fix_eq]
+  simp only [set_min.goF]
+  suffices p : (∃ k, k ≤ n ∧ P k) = P n by rw [p]; rfl
+  apply propext
+  apply Iff.intro _ λ h => ⟨ n, Nat.le_refl _, h ⟩
+  focus
+    intro ⟨ k, h₁, h₂ ⟩
+    suffices p : k = n by rw [p.symm]; exact h₂
+    exact match Nat.eq_or_lt_of_le h₁ with
+    | Or.inl h => h
+    | Or.inr h => False.elim <| h' k h h₂
+
+private theorem go_eq₂ (P : Nat → Prop) (h : ∃ n, P n) {M : Nat}
+  (h' : ∀ n, n < M → ¬ P n) : set_min P h = set_min.go P h M := by
+  simp only [set_min]
+  induction M with
+  | zero => rfl
+  | succ M rh =>
+    suffices p : ∀ n, n < M → ¬ P n by
+      rw [rh p]
+      rw [go_eq _ _ _ p]
+      simp [h' M (Nat.lt_succ_self _)]
+    exact λ _ h => h' _ <| Nat.lt_trans h (Nat.lt_succ_self _)
+
+private theorem go_spec (P : Nat → Prop) (h : ∃ n, P n) (m : Nat)
+  (h' : m ≤ set_min P h) : ∀ n, n < m → ¬ P n := by
+  induction m with
+  | zero => intro; simp [Nat.not_lt_zero]
+  | succ k rh =>
+    intro n
+    intro h₁
+    have p : k < set_min P h := h'
+    specialize rh (Nat.le_of_lt p)
+    rw [go_eq₂ _ _ rh, go_eq _ _ k rh] at p
+    suffices p' : ¬ P k by
+      match Nat.eq_or_lt_of_le <| Nat.le_of_lt_succ h₁ with
+      | Or.inl h₁ => rw [h₁]; exact p'
+      | Or.inr h₁ => exact rh _ h₁
+    byCases p' : P k
+    focus
+      apply False.elim ∘ Nat.not_lt_self k
+      simp_all [p']
+    focus
+      exact p'
+
+theorem eq_set_min (P : Nat → Prop) (h : ∃ n, P n) {M : Nat}
+  (h₁ : P M) (h₂ : ∀ n, n < M → ¬ P n) : M = set_min P h := by
+  rw [go_eq₂ _ _ h₂, go_eq _ _ _ h₂]
+  simp [h₁]
+
+theorem rev_induction (M : Nat) {C : Nat → Prop} (n : Nat)
+  (ind : ∀ m, (∀ n, m < n ∧ m ≤ M ∧ n ≤ M → C n) → C m) : C n :=
+  (rev_bounded_wf M).induction n ind
+
+theorem set_min_spec₀ (P : Nat → Prop) (h : ∃ n, P n) {m : Nat}
+  (h' : ∀ n, n < m → ¬ P n) : m ≤ set_min P h := match h with
+  | ⟨ M, hM ⟩ => by
+    apply @rev_induction M (λ m => (∀ n, n < m → ¬ P n) → m ≤ set_min P h) m _ h'
+    intro m rh h'
+    rw [go_eq₂ P h h', go_eq P h _ h']
+    byCases p : P m
+    focus
+      simp [p, Nat.le_refl]
+    focus
+      rw [show (if P m then m else set_min.go P h (m + 1))
+        = set_min.go P h (m + 1) by simp [p]]
+      apply Nat.le_trans (Nat.le_of_lt <| Nat.lt_succ_self m)
+      suffices p : ∀ n, n < m + 1 → ¬ P n by
+        rw [← go_eq₂ P h p]
+        apply rh _ _ p
+        apply And.intro (Nat.lt_succ_self m)
+        suffices p : m + 1 ≤ M from
+          And.intro (Nat.le_trans (Nat.le_of_lt <| Nat.lt_succ_self _) p) p
+        match Nat.lt_or_ge M (m + 1) with
+        | Or.inl p' =>
+          apply False.elim
+          match Nat.eq_or_lt_of_le <| Nat.le_of_lt_succ p' with
+          | Or.inl p' =>
+            apply p m <| Nat.lt_succ_self _
+            rw [← p']
+            exact hM
+          | Or.inr p' => exact h' _ p' hM
+        | Or.inr p' => exact p'
+      intro n h
+      match Nat.eq_or_lt_of_le <| Nat.le_of_lt_succ h with
+      | Or.inl p' => rw [p']; exact p
+      | Or.inr p' => exact h' _ p'
+
+theorem set_min_spec₁ (P : Nat → Prop) (h : ∃ n, P n) : P (set_min P h) := by
+  apply byContradiction
+  intro h'
+  suffices p : set_min P h + 1 ≤ set_min P h from Nat.not_lt_self _ p
+  apply set_min_spec₀
+  intro n h''
+  exact match Nat.eq_or_lt_of_le <| Nat.le_of_lt_succ h'' with
+  | Or.inl h'' => h'' ▸ h'
+  | Or.inr h'' => go_spec P h (n + 1) h'' _ (Nat.lt_succ_self _)
+
+theorem set_min_spec₂ (P : Nat → Prop) (h : ∃ n, P n) : ∀ n, P n → set_min P h ≤ n := by
+  intro n h'
+  match Nat.lt_or_ge n (set_min P h) with
+  | Or.inl p =>
+    apply False.elim ∘ (λ p' : ¬ P n => p' h')
+    exact go_spec P h (n + 1) p _ (Nat.lt_succ_self n)
+  | Or.inr p => exact p
+
+theorem set_min_le_of_included {P Q : Nat → Prop} (hP : ∃ n, P n) (hQ : ∃ n, Q n)
+  (h : ∀ n, P n → Q n) : set_min Q hQ ≤ set_min P hP := by
+  apply set_min_spec₀
+  intro n h' p
+  apply Nat.not_lt_self _ ∘ Nat.lt_of_lt_of_le h'
+  apply set_min_spec₂
+  exact h _ p
+
+end
+
 section Algebra /- Some algebraic notions -/
 /- (at the time of writing, mathlib4 isn't ready so we need to redefine everything.) -/
 
@@ -269,8 +501,7 @@ def union : Fintype α → Fintype α → Fintype α := Quotient.lift₂
 instance : HasUnion (Fintype α) where
   union := Fintype.union
 
-theorem spec (l₁ l₂ : List α) (a : α) :
-  (a ∈ (Fintype.mk l₁) ∪ (Fintype.mk l₂)) = List.mem a (List.append l₁ l₂) := rfl
+theorem union_spec (l₁ l₂ : List α) : Fintype.mk l₁ ∪ Fintype.mk l₂ = mk (List.append l₁ l₂) := rfl
 
 theorem mem_union_iff (x y : Fintype α) (a : α) : a ∈ x ∪ y ↔ a ∈ x ∨ a ∈ y := by
   suffices h : ∀ l₁ l₂, a ∈ (mk l₁) ∪ (mk l₂) ↔ a ∈ (mk l₁) ∨ a ∈ (mk l₂)
@@ -452,24 +683,190 @@ theorem different_if_not_same_element {x y : Fintype β} {a : β} (h₁ : ¬ a �
   rw [ext] at h
   exact h₁ <| (h a).2 h₂
 
+private theorem mem_image_fold {β : Type u} (f : α → Fintype β) (l₁ : List α) (a : α)
+  (h : List.mem a l₁) : f a ⊆ (List.foldr (λ a x => f a ∪ x) ∅ l₁) := by
+  induction l₁ with
+  | nil => apply False.elim h
+  | cons x t rh =>
+    simp only [List.foldr]
+    byCases p : a = x
+    focus
+      rw [p]
+      exact included_union_r _ included_refl
+    focus
+      apply included_union_l
+      apply rh
+      simp_all [List.mem]
+
 def image {β : Type u} (f : α → Fintype β) : Fintype α → Fintype β :=
   Quotient.lift (λ l => List.foldr (λ a x => f a ∪ x) ∅ l) <| by
-  admit -- Prove each is included in the other ?
+  suffices p : ∀ l₁ l₂, (∀ a, List.mem a l₁ → List.mem a l₂) →
+    List.foldr (λ a x => f a ∪ x) ∅ l₁ ⊆ List.foldr (λ a x => f a ∪ x) ∅ l₂ by
+    intro l₁ l₂ h
+    rw [ext]
+    intro a
+    apply Iff.intro (p l₁ l₂ _ _) (p l₂ l₁ _ _) <;> first
+      | intro b
+        rw [h]
+        exact id
+  intro l₁ l₂ h
+  induction l₁ with
+  | nil => exact empty_included _
+  | cons x t rh =>
+    apply union_included_iff.2 (And.intro _ _)
+    focus
+      apply mem_image_fold
+      apply h
+      simp [List.mem]
+    focus
+      apply rh
+      intro a h'
+      apply h
+      simp [List.mem, h']
 
 theorem in_image_of_is_image {β : Type u} {f : α → Fintype β} {a : α}
-  {x : Fintype α} (h : a ∈ x) : f a ⊆ image f x := sorry
+  {x : Fintype α} : a ∈ x → f a ⊆ image f x := by
+  apply @Quotient.inductionOn _ _ (λ x : Fintype α => a ∈ x → f a ⊆ image f x) x
+  intro l
+  apply mem_image_fold
 
 theorem image_in_of_all_in {β : Type u} {f : α → Fintype β} {x : Fintype α}
-  {A : Fintype β} (h : ∀ a, a ∈ x → f a ⊆ A) : image f x ⊆ A := by
-  admit
+  {A : Fintype β} : (∀ a, a ∈ x → f a ⊆ A) → image f x ⊆ A := by
+  apply @Quotient.inductionOn _ _
+    (λ x : Fintype α => (∀ a, a ∈ x → f a ⊆ A) → image f x ⊆ A) x
+  intro l h
+  induction l with
+  | nil => exact empty_included _
+  | cons x t rh =>
+    apply union_included_iff.2 (And.intro _ _)
+    focus
+      apply h
+      suffices p : x ∈ mk (x :: t) from p
+      simp [mem_mk_iff, List.mem]
+    focus
+      exact rh <| λ a h' => h _ <| Or.inr h'
 
 theorem mem_image_iff {β : Type u} {f : α → Fintype β} {x : Fintype α} {b : β} :
-  b ∈ image f x ↔ ∃ a, a ∈ x ∧ b ∈ f a := sorry
+  b ∈ image f x ↔ ∃ a, a ∈ x ∧ b ∈ f a := by
+  apply Iff.intro
+  focus
+    intro h
+    apply byContradiction
+    intro h'
+    have h'' : ∀ a, a ∈ x → f a ⊆ image f x \ mk [b] := by
+      intro a h
+      apply included_trans _
+        (included_without_of_included (mk [b]) (in_image_of_is_image h))
+      rw [← not_mem_iff_in_without]
+      intro h''
+      exact h' ⟨ a, h, h'' ⟩
+    suffices p : ¬ b ∈ image f x from p h
+    rw [not_mem_iff_in_without]
+    exact image_in_of_all_in h''
+  focus
+    intro ⟨ a, h, h' ⟩
+    rw [mem_iff_singleton_included]
+    apply included_trans _ (in_image_of_is_image h)
+    rw [← mem_iff_singleton_included]
+    exact h'
+
+section Size
+
+set_option codegen false in
+def size (x : Fintype α) := set_min
+  (λ n => ∃ l, n = List.length l ∧ x ⊆ mk l) <| by
+  apply @Quotient.inductionOn _ _
+    (λ x : Fintype α => ∃ n, ∃ l, n = List.length l ∧ x ⊆ mk l)
+  exact λ l => ⟨ List.length l, l, rfl, λ _ => id ⟩
+
+theorem size_spec (x : Fintype α) : ∃ l, size x = List.length l ∧ x ⊆ mk l :=
+  set_min_spec₁ (λ n => ∃ l, n = List.length l ∧ ∀ a : α, a ∈ x → List.mem a l) _
+
+theorem size_mk_le (l : List α) : size (mk l) ≤ List.length l :=
+  set_min_spec₂ _ _ _ ⟨ l, rfl, λ _ => id ⟩
+
+theorem size_le_of_included {x y : Fintype α} (h : x ⊆ y) : size x ≤ size y := by
+  apply set_min_le_of_included ⟨ size y, size_spec y ⟩ ⟨ size x, size_spec x ⟩
+  intro n ⟨ l, l_length, hl ⟩
+  let ⟨ l', l'_length, hl' ⟩ := size_spec x
+  apply Exists.intro l
+  apply And.intro l_length
+  intro a h'
+  exact hl a <| h a h'
+
+theorem length_le_size {x : Fintype α} {l : List α} (h : x ⊆ mk l) :
+  size x ≤ List.length l :=
+  Nat.le_trans (size_le_of_included h) (size_mk_le _)
+
+theorem le_size_of_all_le_length {x : Fintype α} {n : Nat}
+  (h : ∀ l : List α, x ⊆ mk l → n ≤ List.length l) : n ≤ size x := by
+  have ⟨ l', l'_length, h' ⟩ := size_spec x
+  rw [l'_length]
+  exact h _ h'
+
+theorem length_le_of_included {x : Fintype α} {l : List α} (h : x ⊆ mk l) :
+  size x ≤ List.length l := by
+  admit
+
+theorem size_succ_of_union_not_included {x : Fintype α} {a : α} (h : ¬ a ∈ x) :
+  size (mk [a] ∪ x) = size x + 1 := by
+  apply Nat.eq_of_le_of_le
+  focus
+    have ⟨ l, l_length, hl ⟩ := size_spec x
+    rw [l_length]
+    have p : mk [a] ∪ x ⊆ mk [a] ∪ mk l := by
+      apply union_included_iff.2 (And.intro _ _)
+      exact included_union_r _ included_refl
+      exact included_union_l _ hl
+    apply Nat.le_trans (size_le_of_included p)
+    rw [union_spec]
+    apply Nat.le_trans (size_mk_le _)
+    exact Nat.le_refl _
+  focus
+    apply @Quotient.inductionOn _ _ (λ x : Fintype α => ¬ a ∈ x → size x + 1 ≤ size (mk [a] ∪ x)) x _ h
+    intro l h
+    apply le_size_of_all_le_length
+    intro l' h'
+    have p := length_le_of_included (union_included_iff.1 h').2
+    apply Nat.le_trans (Nat.succ_le_succ <| size_mk_le _) _
+    -- (Nat.le_trans _ (List.length_le_of_included h'))
+    --exact Nat.le_refl _
+    admit
+
+theorem eq_of_contained_of_same_size {x y : Fintype α} (h : x ⊆ y)
+  (h' : size x = size y) : x = y := by
+  rw [ext]
+  intro a
+  apply Iff.intro (h a)
+  intro a_in_y
+  apply byContradiction
+  intro p
+  suffices p : size x < size y from Nat.ne_of_lt p h'
+  have p' : mk [a] ∪ x ⊆ y := by
+    intro b h'
+    match (mem_union_iff _ _ _).1 h' with
+    | Or.inl h' =>
+      suffices p : b = a by rw [p]; exact a_in_y
+      simp_all [mem_mk_iff, List.mem]
+    | Or.inr h' => exact h _ h'
+  apply Nat.lt_of_lt_of_le _ (size_le_of_included p')
+  rw [size_succ_of_union_not_included p]
+  exact Nat.lt_succ_self _
+
+end Size
 
 def included_wfRel : WellFoundedRelation (Fintype α) where
   rel x y := included x y ∧ x ≠ y
   wf := by
-    admit
+    apply @Subrelation.wf _ (measure size).rel _ _
+    focus
+      exact (measure size).wf
+    focus
+      intro x y ⟨ h, h' ⟩
+      suffices p : size x < size y from p
+      apply Nat.lt_of_le_of_ne (size_le_of_included h)
+      intro h''
+      exact h' <| eq_of_contained_of_same_size h h''
 
 end Fintype
 
@@ -573,3 +970,7 @@ theorem sum_finite {α β : Type u} (h₁ : finite α) (h₂ : finite β) : fini
 end Sums
 
 end Finite
+
+section
+
+end
