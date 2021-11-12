@@ -391,7 +391,7 @@ private theorem flush_union_left (a : Fintype β) {b c : Fintype β} :
   rw [Fintype.union_comm a b]
 
 private theorem union_idempotent' (a b : Fintype β) : a ∪ b ∪ b = a ∪ b := by
-  admit
+  rw [Fintype.union_assoc, Fintype.union_idempotent]
 
 theorem cons_vehicle_in {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
   (h₁ : (𝒱 θ : Fintype β) ⊆ 𝒱 l₁ ∪ 𝒱 l₂)

@@ -8,6 +8,12 @@ section /- Miscellaneous basic definitions and theorems -/
 
 def contrapose {p q : Prop} : (p → q) → (¬ q → ¬ p) := λ h₁ h₂ h₃ => h₂ (h₁ h₃)
 
+theorem or_comm {P Q : Prop} : P ∨ Q ↔ Q ∨ P := by
+  apply Iff.intro <;> intro h <;> cases h
+    <;> first
+    | apply Or.inl; assumption
+    | apply Or.inr; assumption
+
 theorem or_assoc {p q r : Prop} : (p ∨ q) ∨ r ↔ p ∨ q ∨ r := Iff.intro
   (λ h => by cases h with
     | inl h => cases h <;> simp_all
@@ -160,9 +166,74 @@ theorem List.mem_map_iff_image {α β : Type u} {y : β} {f : α → β} {l : Li
   focus
     exact λ ⟨ x, ⟨ h₁, h₂ ⟩ ⟩ => h₂ ▸ List.mem_map h₁
 
-theorem List.filter_eq {α : Type u} {f : α → Bool} {l : List α} {x : α} :
-  filter f (x :: l) = if f x then x :: filter f l else filter f l := by
-  admit
+private def internal (p : α → Bool) : List α → List α → List α
+  | [],    rs => rs
+  | a::as, rs => match p a with
+     | true  => internal p as (a::rs)
+     | false => internal p as rs
+
+private theorem append_eq (a : α) (l : List α) : a :: l = [a] ++ l := rfl
+
+private theorem append_eq' (l : List α) : l ++ [] = l := by
+  induction l with
+  | nil => rfl
+  | cons a l rh => rw [append_eq, List.append_assoc, rh]
+
+private theorem internal_eq₁ (p : α → Bool) (as rs : List α) :
+  internal p as rs = internal p as [] ++ rs := by
+  induction as generalizing rs with
+  | nil => rfl
+  | cons a as rh =>
+    simp only [internal]
+    cases p a <;> simp only [rh rs, rh (a :: rs), rh [a]]
+    rw [append_eq a rs, ← List.append_assoc]
+
+private theorem internal_eq₂ (p : α → Bool) (as rs : List α) (a : α) :
+  internal p (a :: as) rs = internal p []
+    (internal p as [] ++ (if p a then [a] else []) ++ rs) := by
+  induction as generalizing a rs with
+  | nil =>
+    simp only [internal]
+    cases p a <;> simp
+  | cons b as rh =>
+    simp only [internal]
+    cases h : p a <;> cases p b <;> conv => simp_match; simp_match
+      <;> simp only [if_pos, if_neg]
+      <;> simp only [internal_eq₁ _ _ rs, internal_eq₁ _ _ [b],
+        internal_eq₁ _ _ (b :: rs), internal_eq₁ _ _ (a :: rs),
+        internal_eq₁ _ _ (b :: a :: rs)]
+      <;> simp only [append_eq a rs, append_eq b rs, append_eq b ([a] ++ rs)]
+      <;> simp only [← List.append_assoc, append_eq']
+
+private theorem List.filterAux_eq₁ (p : α → Bool) (as rs : List α) :
+  filterAux p as rs = reverse (internal p as rs) := by
+  induction as generalizing rs with
+  | nil => rfl
+  | cons a as rha =>
+    induction rs
+      <;> simp only [filterAux, internal]
+      <;> cases p a <;> simp [rha]
+
+private theorem List.filterAux_eq₂ (p : α → Bool) (as : List α) (a : α) :
+  filterAux p (a :: as) [] = (if p a then [a] else []) ++ reverse (internal p as []) := by
+  suffices h : filterAux p (a :: as) [] =
+    reverse (internal p as [] ++ (if p a then [a] else [])) by
+    rw [reverse_append] at h
+    revert h
+    cases p a <;> conv => simp_match <;> simp only [if_pos, if_neg]
+      <;> exact id
+  rw [filterAux_eq₁]
+  simp only [internal]
+  cases p a <;> conv => simp_match <;> simp only [if_pos, if_neg, internal_eq₁ _ _ [a]]
+    <;> simp [append_eq', if_pos]
+
+theorem List.filter_eq {α : Type u} {f : α → Bool} {l : List α} {a : α} :
+  filter f (a :: l) = if f a then a :: filter f l else filter f l := by
+  simp only [filter]
+  rw [filterAux_eq₂, filterAux_eq₁]
+  cases f a <;> simp only [if_pos, if_neg]
+  rfl
+  rw [← append_eq]
 
 theorem List.mem_filter {α : Type u} {f : α → Bool} {l : List α} {x : α} :
   List.mem x (List.filter f l) ↔ List.mem x l ∧ f x := by
