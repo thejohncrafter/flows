@@ -1059,17 +1059,10 @@ private def robinsonR (x : Term α β × Term α β)
   | (Term.Var x, Term.Cst c) => by
     apply unify_cst
 
-/-
--- robinson._unary is undefined :'(
-def robinson (u v : Term α β) : Option (Subst α β) := match (u, v) with
-  | (Term.Cons l₁ r₁, Term.Cons l₂ r₂) =>
-    if let some θ := robinson l₁ l₂ then
-      if let some φ := robinson (r₁ • θ) (r₂ • θ) then
-        some (θ * φ)
-      else none
-    else none
-  | _ => none
-termination_by sorry
-decreasing_by sorry -/
+theorem herbrand (u v : Term α β) :
+  strangers (Subst α β) u v ∨ ∃ θ : Subst α β, is_mgu _ u v θ :=
+  match rel.wf.induction (u, v) robinsonR with
+  | Or.inl p => Or.inl p
+  | Or.inr ⟨ θ, p, _ ⟩ => Or.inr ⟨ θ, p ⟩
 
 end
