@@ -208,6 +208,41 @@ theorem List.mem_filter {α : Type u} {f : α → Bool} {l : List α} {x : α} :
           apply Bool.noConfusion (Eq.trans p.symm hr)
         | inr hl => exact hl
 
+theorem List.length_filter (l : List α) (f : α → Bool) :
+  List.length (List.filter f l) ≤ List.length l := by
+  induction l with
+  | nil => exact Nat.zero_le _
+  | cons a t rh =>
+    rw [List.filter_eq]
+    byCases p : f a = true
+    exact if_pos p ▸ Nat.succ_le_succ rh
+    exact if_neg p ▸ Nat.le_trans rh (Nat.le_of_lt <| Nat.lt_succ_self _)
+
+private def strong_induction_length {α : Type u} {C : List α → Prop} (a : List α)
+  (step : ∀ (x : List α),
+    (∀ (y : List α), List.length y < List.length x → C y) → C x) : C a :=
+  (measure List.length).wf.induction _ step
+
+theorem List.filter_mem_length_le {l : List α} {a : α} (h : List.mem a l) :
+  List.length (List.filter (λ b => b ≠ a) l) + 1 ≤ List.length l := by
+  induction l using strong_induction_length with
+  | step l rh =>
+    cases l with
+    | nil => exact False.elim h
+    | cons b t =>
+      rw [List.filter_eq]
+      byCases p : decide (b ≠ a) = true
+      focus
+        rw [if_pos p]
+        apply Nat.succ_le_succ
+        apply rh _ (Nat.lt_succ_self _)
+        exact match h with
+        | Or.inl h => False.elim <| (of_decide_eq_true p).symm h
+        | Or.inr h => h
+      focus
+        rw [if_neg p]
+        exact Nat.succ_le_succ <| List.length_filter _ _
+
 def List.included {α : Type u} (l₁ l₂ : List α) :=
   ∀ a, List.mem a l₁ → List.mem a l₂
 
@@ -805,8 +840,29 @@ theorem le_size_of_all_le_length {x : Fintype α} {n : Nat}
   exact h _ h'
 
 theorem length_le_of_included {x : Fintype α} {l : List α} (h : x ⊆ mk l) :
-  size x ≤ List.length l := by
-  admit
+  size x ≤ List.length l :=
+  Nat.le_trans (size_le_of_included h) (size_mk_le l)
+
+theorem size_union_not_contained_le {x : Fintype α} {l : List α} {a : α}
+  (h₁ : mk [a] ∪ x ⊆ mk l) (h₂ : ¬ a ∈ x) : size x + 1 ≤ List.length l := by
+  have p : List.mem a l := by
+    rw [union_included_iff] at h₁
+    apply h₁.1
+    simp [mem_mk_iff, List.mem]
+  apply Nat.le_trans _ (List.filter_mem_length_le p)
+  apply Nat.add_le_add_right
+  apply length_le_of_included
+  intro b h'
+  rw [mem_mk_iff, List.mem_filter]
+  apply And.intro
+  focus
+    exact h₁ _ ∘ (mem_union_iff _ _ _).2 ∘ Or.inr <| h'
+  focus
+    apply decide_eq_true
+    intro h
+    apply h₂
+    rw [← h]
+    exact h'
 
 theorem size_succ_of_union_not_included {x : Fintype α} {a : α} (h : ¬ a ∈ x) :
   size (mk [a] ∪ x) = size x + 1 := by
@@ -823,15 +879,9 @@ theorem size_succ_of_union_not_included {x : Fintype α} {a : α} (h : ¬ a ∈ 
     apply Nat.le_trans (size_mk_le _)
     exact Nat.le_refl _
   focus
-    apply @Quotient.inductionOn _ _ (λ x : Fintype α => ¬ a ∈ x → size x + 1 ≤ size (mk [a] ∪ x)) x _ h
-    intro l h
-    apply le_size_of_all_le_length
-    intro l' h'
-    have p := length_le_of_included (union_included_iff.1 h').2
-    apply Nat.le_trans (Nat.succ_le_succ <| size_mk_le _) _
-    -- (Nat.le_trans _ (List.length_le_of_included h'))
-    --exact Nat.le_refl _
-    admit
+    exact le_size_of_all_le_length <| λ l h' => Nat.le_trans
+      (size_union_not_contained_le h' h)
+      (Nat.le_refl _)
 
 theorem eq_of_contained_of_same_size {x y : Fintype α} (h : x ⊆ y)
   (h' : size x = size y) : x = y := by
@@ -970,7 +1020,3 @@ theorem sum_finite {α β : Type u} (h₁ : finite α) (h₂ : finite β) : fini
 end Sums
 
 end Finite
-
-section
-
-end
