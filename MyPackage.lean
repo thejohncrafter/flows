@@ -88,8 +88,8 @@ private theorem carriers_arrow_inj (f g : β → Term α β) (x y : {x // (f * g
     λ p q => False.elim <| match comp_carrier hx with | Or.inl r => p r | Or.inr r => q r
   have y_nontriv : {P : Prop} → ¬ f y ≠ Term.Var y → ¬ g y ≠ Term.Var y → P :=
     λ p q => False.elim <| match comp_carrier hy with | Or.inl r => p r | Or.inr r => q r
-  byCases p₁ : f x ≠ Term.Var x <;> byCases p₂ : g x ≠ Term.Var x
-    <;> byCases p₃ : f y ≠ Term.Var y <;> byCases p₄ : g y ≠ Term.Var y
+  by_cases p₁ : f x ≠ Term.Var x <;> by_cases p₂ : g x ≠ Term.Var x
+    <;> by_cases p₃ : f y ≠ Term.Var y <;> by_cases p₄ : g y ≠ Term.Var y
     <;> simp [dif_pos p₁, dif_neg p₁, dif_pos p₂, dif_neg p₂,
       dif_pos p₃, dif_neg p₃, dif_pos p₄, dif_neg p₄] at h
     <;> first
@@ -213,7 +213,7 @@ theorem elementary_carrier {x : β} {u : Term α β} {h : Term.Var x ≠ u} :
   rw [carrier_spec]
   apply Iff.intro
   focus
-    byCases p : y = x
+    by_cases p : y = x
     focus
       rw [p]
       intro _
@@ -326,7 +326,7 @@ theorem vehicle_on_image {θ : Subst α β} {A : Fintype β}
     induction u with
     | Cst c => cases θ; apply Fintype.empty_included
     | Var x =>
-      byCases h : (Term.Var x : Term α β) • θ = Term.Var x
+      by_cases h : (Term.Var x : Term α β) • θ = Term.Var x
       focus
         apply Fintype.included_union_l
         rw [h]
@@ -359,12 +359,13 @@ theorem vehicle_on_image_contained {θ : Subst α β} {A : Fintype β} {u : Term
 
 theorem vehicle_on_comp {θ φ : Subst α β} {A : Fintype β}
   (h₁ : 𝒱 θ ⊆ A) (h₂ : 𝒱 φ ⊆ A) : 𝒱 (θ * φ) ⊆ A := by
+  simp only [HasVehicle.vehicle, Subst.vehicle]
   apply Fintype.image_in_of_all_in
   intro x h
   rw [carrier_spec] at h
   simp only [] -- Better way to do it ?
   rw [← RAction.smul_mul]
-  byCases hθ : (Term.Var x : Term α β) • θ = Term.Var x
+  by_cases hθ : (Term.Var x : Term α β) • θ = Term.Var x
   focus
     have hφ := show (Term.Var x : Term α β) • φ ≠ Term.Var x by
       intro hφ
@@ -481,6 +482,7 @@ theorem vanishing_on_vehicle {θ : Subst α β} (h₁ : vanishing θ)
   suffices h : 𝒱 θ ⊆ 𝒱 θ \ (Fintype.mk [x]) by
     apply Fintype.not_mem_iff_in_without.2
     exact h
+  conv => lhs; simp only [HasVehicle.vehicle, Subst.vehicle]
   apply Fintype.image_in_of_all_in
   intro a h
   apply Fintype.included_trans _
@@ -504,7 +506,7 @@ theorem cons_vanishing {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
   (h₂ : (𝒱 φ : Fintype β) ⊆ 𝒱 (r₁ • θ) ∪ 𝒱 (r₂ • θ))
   (h₃ : vanishing θ) (h₄ : vanishing φ) : vanishing (θ * φ) := by
   intro x hx y
-  byCases hθ : (Term.Var x : Term α β) • θ = Term.Var x
+  by_cases hθ : (Term.Var x : Term α β) • θ = Term.Var x
   focus
     let p := show (Term.Var x : Term α β) • φ ≠ Term.Var x by
       intro hφ
@@ -533,7 +535,7 @@ theorem elementary_vanishing {x : β} {u : Term α β} {h₁ : Term.Var x ≠ u}
     rw [elementary_carrier, Fintype.mem_mk_iff] at p
     simp_all [List.mem]
   rw [p] at h'
-  byCases p' : t = x
+  by_cases p' : t = x
   focus
     rw [p'] at h'
     rw [Subst.elementary_spec₁] at h'
@@ -665,7 +667,7 @@ theorem mass_lower_bound {x : β} {v : Term α β} (h : Term.Var x ≠ v) (u : T
       intros; simp
   | Var y => match θ with
     | ⟨ θ, _ ⟩ =>
-      byCases p : x = y
+      by_cases p : x = y
         <;> simp [mass, weight, RSMul.smul, map_reduce, Subst.elementary, HMul.hMul, Mul.mul, comp, p]
       rw [Nat.one_mul]
       exact Nat.le.refl
@@ -780,7 +782,7 @@ private theorem decr_left (l₁ r₁ l₂ r₂ : Term α β) :
     simp [invImage, InvImage, Fintype.included_wfRel]
     suffices h : (𝒱 l₁ ∪ 𝒱 l₂ : Fintype β)
       ⊆ 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) by
-      byCases p : (𝒱 l₁ ∪ 𝒱 l₂ : Fintype β)
+      by_cases p : (𝒱 l₁ ∪ 𝒱 l₂ : Fintype β)
         = 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂)
       exact Or.inr p
       exact Or.inl ⟨ h, p ⟩
@@ -795,7 +797,7 @@ private theorem decr_right (l₁ r₁ l₂ r₂ : Term α β) {θ : Subst α β}
   (θ_vehicle : (𝒱 θ : Fintype β) ⊆ 𝒱 l₁ ∪ 𝒱 l₂)
   (θ_vanishing : vanishing θ) (θ_carrier : carrier θ ⊆ 𝒱 l₁ ∪ 𝒱 l₂) :
   rel.rel (r₁ • θ, r₂ • θ) (Term.Cons l₁ r₁, Term.Cons l₂ r₂) := by
-  byCases h : θ = 1
+  by_cases h : θ = 1
   focus
     rw [h, RAction.smul_one, RAction.smul_one]
     apply lex_of_le_and_lt
@@ -803,7 +805,7 @@ private theorem decr_right (l₁ r₁ l₂ r₂ : Term α β) {θ : Subst α β}
       simp [invImage, InvImage, Fintype.included_wfRel]
       suffices h : (𝒱 r₁ ∪ 𝒱 r₂ : Fintype β)
         ⊆ 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) by
-        byCases p : (𝒱 r₁ ∪ 𝒱 r₂ : Fintype β)
+        by_cases p : (𝒱 r₁ ∪ 𝒱 r₂ : Fintype β)
           = 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂)
         exact Or.inr p
         exact Or.inl ⟨ h, p ⟩
@@ -865,7 +867,7 @@ private theorem prepend_elementary_on_variable_unifier {x : β} {u : Term α β}
   apply Subst.ext.2
   intro y
   rw [← RAction.smul_mul]
-  byCases p : y = x
+  by_cases p : y = x
   focus
     rw [p, h', Subst.elementary_spec₁]
   focus
@@ -934,7 +936,7 @@ private theorem variable_stranger_of_in_vehicle {x : β} {u : Term α β}
 
 private theorem unify_mass_nonzero (x : β) {u : Term α β} (h : mass u ≠ 0) :
   P ((Term.Var x), u) := by
-  byCases p : x ∈ (𝒱 u : Fintype β)
+  by_cases p : x ∈ (𝒱 u : Fintype β)
   exact Or.inl <| variable_stranger_of_in_vehicle h p
   exact unify_variable_of_not_in_vehicle p
 
@@ -1001,7 +1003,7 @@ private def robinsonR (x : Term α β × Term α β)
     apply Ne.symm ∘ Nat.ne_of_lt
       <| Nat.lt_of_lt_of_le (Nat.zero_lt_one) (Nat.le_add_left _ _)
   | (Term.Var x, Term.Var y) => by
-    byCases p : x = y
+    by_cases p : x = y
     focus
       apply Or.inr ∘ Exists.intro 1
       rw [p]
@@ -1027,7 +1029,7 @@ private def robinsonR (x : Term α β × Term α β)
       apply unify_variable_of_not_in_vehicle
       simp [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem, p]
   | (Term.Cst a, Term.Cst b) => by
-    byCases p : a = b
+    by_cases p : a = b
     focus
       apply Or.inr ∘ Exists.intro 1
       rw [p]

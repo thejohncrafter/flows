@@ -57,11 +57,6 @@ theorem Nat.not_lt_self (a : Nat) : ¬ a < a := by
   | zero => simp [Nat.lt] at h
   | succ a rh => exact rh <| Nat.lt_of_succ_lt_succ h
 
-theorem Nat.ne_of_lt {a b : Nat} (h : a < b) : a ≠ b := by
-  intro h'
-  rw [h'] at h
-  exact not_lt_self _ h
-
 theorem Nat.lt_of_not_le {a b : Nat} (h : ¬ a ≤ b) : b < a :=
   match Nat.lt_or_ge b a with
   | Or.inl h' => h'
@@ -97,7 +92,7 @@ theorem Nat.sub_add_self {n m : Nat} (h : m ≤ n) : n - m + m = n := by
   | zero => rfl
   | succ m rh =>
     rw [add_succ, sub_succ, ← succ_add]
-    byCases p : n - m = 0
+    by_cases p : n - m = 0
     focus
       have p' := zero_lt_sub h
       rw [p] at p'
@@ -119,13 +114,13 @@ def List.mem (a : α) : (l : List α) → Prop
   | x :: t => a = x ∨ mem a t
 
 theorem List.mem_append {α : Type u} {x : α} {l₁ l₂ : List α} :
-  List.mem x (List.append l₁ l₂) ↔ List.mem x l₁ ∨ List.mem x l₂ := by
+  List.mem x (l₁ ++ l₂) ↔ List.mem x l₁ ∨ List.mem x l₂ := by
   apply Iff.intro
   focus
     induction l₁ with
     | nil => simp [List.append]; exact Or.inr
     | cons y t =>
-      byCases h' : x = y
+      by_cases h' : x = y
       <;> simp [h', List.append, List.mem]
       <;> assumption
   focus
@@ -135,7 +130,7 @@ theorem List.mem_append {α : Type u} {x : α} {l₁ l₂ : List α} :
     | cons y t t_h =>
       match h with
       | Or.inl h =>
-        byCases h' : x = y <;> simp [h', List.append, List.mem]
+        by_cases h' : x = y <;> simp [h', List.append, List.mem]
         simp [h', List.mem] at h
         exact t_h <| Or.inl h
       | Or.inr h =>
@@ -161,7 +156,7 @@ theorem List.mem_map_iff_image {α β : Type u} {y : β} {f : α → β} {l : Li
     | nil => simp [List.mem]
     | cons x t rh =>
       intro h
-      byCases p : y = f x
+      by_cases p : y = f x
       focus
         exact ⟨ x, by simp [List.mem, p] ⟩
       focus
@@ -245,9 +240,9 @@ theorem List.mem_filter {α : Type u} {f : α → Bool} {l : List α} {x : α} :
   induction l with
   | nil => simp [mem]
   | cons y t rh =>
-    byCases p : f y
+    by_cases p : f y
     focus
-      byCases p' : x = y
+      by_cases p' : x = y
       focus
         rw [p']
         rw [p'] at rh
@@ -290,7 +285,7 @@ theorem List.length_filter (l : List α) (f : α → Bool) :
   | nil => exact Nat.zero_le _
   | cons a t rh =>
     rw [List.filter_eq]
-    byCases p : f a = true
+    by_cases p : f a = true
     exact if_pos p ▸ Nat.succ_le_succ rh
     exact if_neg p ▸ Nat.le_trans rh (Nat.le_of_lt <| Nat.lt_succ_self _)
 
@@ -307,7 +302,7 @@ theorem List.filter_mem_length_le {l : List α} {a : α} (h : List.mem a l) :
     | nil => exact False.elim h
     | cons b t =>
       rw [List.filter_eq]
-      byCases p : decide (b ≠ a) = true
+      by_cases p : decide (b ≠ a) = true
       focus
         rw [if_pos p]
         apply Nat.succ_le_succ
@@ -425,7 +420,7 @@ private theorem go_spec (P : Nat → Prop) (h : ∃ n, P n) (m : Nat)
       match Nat.eq_or_lt_of_le <| Nat.le_of_lt_succ h₁ with
       | Or.inl h₁ => rw [h₁]; exact p'
       | Or.inr h₁ => exact rh _ h₁
-    byCases p' : P k
+    by_cases p' : P k
     focus
       apply False.elim ∘ Nat.not_lt_self k
       simp_all [p']
@@ -447,7 +442,7 @@ theorem set_min_spec₀ (P : Nat → Prop) (h : ∃ n, P n) {m : Nat}
     apply @rev_induction M (λ m => (∀ n, n < m → ¬ P n) → m ≤ set_min P h) m _ h'
     intro m rh h'
     rw [go_eq₂ P h h', go_eq P h _ h']
-    byCases p : P m
+    by_cases p : P m
     focus
       simp [p, Nat.le_refl]
     focus
@@ -569,7 +564,7 @@ def mem : Fintype α → α → Prop := Quotient.lift (flip List.mem) <| by
 instance : HasMem α (Fintype α) where
   mem a x := Fintype.mem x a
 
-def mk (l : List α) : Fintype α := Quotient.mk l
+def mk (l : List α) : Fintype α := Quotient.mk' l
 
 theorem mem_mk_iff {l : List α} {x : α} : x ∈ Fintype.mk l ↔ List.mem x l := by
   suffices h : (Fintype.mem <| Fintype.mk l) = flip List.mem l by
@@ -607,6 +602,7 @@ def union : Fintype α → Fintype α → Fintype α := Quotient.lift₂
   intro _ _ _ _ h₁ h₂
   apply Quotient.sound
   intro a
+  have p := h₁ a
   simp [List.mem_append, h₁ a, h₂ a]
 
 instance : HasUnion (Fintype α) where
@@ -619,9 +615,8 @@ theorem mem_union_iff (x y : Fintype α) (a : α) : a ∈ x ∪ y ↔ a ∈ x �
   from @Quotient.inductionOn₂ _ _ _ _ (λ x y : Fintype α => a ∈ x ∪ y ↔ a ∈ x ∨ a ∈ y) x y h
   intro l₁ l₂
   -- I'm not really convinced by the look of this proof :/
-  rw [show (a ∈ (Fintype.mk l₁) ∪ (Fintype.mk l₂)) = List.mem a (List.append l₁ l₂) from rfl,
-    List.mem_append]
-  simp [Fintype.mem_mk_iff]
+  rw [show (a ∈ (Fintype.mk l₁) ∪ (Fintype.mk l₂)) = List.mem a (List.append l₁ l₂) from rfl]
+  simp [List.mem_append, Fintype.mem_mk_iff]
 
 theorem union_assoc (x y z : Fintype α) : x ∪ y ∪ z = x ∪ (y ∪ z) := by
   suffices h : ∀ l₁ l₂ l₃ : List α, (mk l₁) ∪ (mk l₂) ∪ (mk l₃)
@@ -731,9 +726,9 @@ theorem mem_without_iff {x y : Fintype α} {a : α} : a ∈ x \ y ↔ a ∈ x �
   intro l
   suffices p : a ∈ mk l \ y ↔
     List.mem a (List.filter (λ b => ¬ b ∈ y) l) by
-    simp only [mk] at p
+    simp only [mk, Quotient.mk'] at p
     rw [p]
-    rw [List.mem_filter, show Quotient.mk l = mk l from rfl, mem_mk_iff]
+    rw [List.mem_filter, show Quotient.mk _ l = mk l from rfl, mem_mk_iff]
     rw [show decide ¬ a ∈ y = true ↔ ¬ a ∈ y from Iff.intro of_decide_eq_true decide_eq_true]
     exact Iff.intro id id
   exact Iff.intro id id
@@ -800,7 +795,7 @@ private theorem mem_image_fold {β : Type u} (f : α → Fintype β) (l₁ : Lis
   | nil => apply False.elim h
   | cons x t rh =>
     simp only [List.foldr]
-    byCases p : a = x
+    by_cases p : a = x
     focus
       rw [p]
       exact included_union_r _ included_refl
@@ -1016,9 +1011,9 @@ theorem subtype_finite {α : Type u} (h : finite α) (P : α → Prop) : finite 
   | cons x t rh =>
     match p₁ with
     | Or.inl p₁ =>
-      conv => rhs; rw [← p₁]
+      rw [← p₁]
       simp [List.filterMap, List.mem, p₂]
-    | Or.inr p₁ => byCases h : P x
+    | Or.inr p₁ => by_cases h : P x
       <;> simp [h, List.filterMap, List.mem, p₂, rh p₁]
 
 theorem finite_of_full_subtype_finite {α : Type u} {P : α → Prop}
@@ -1033,7 +1028,7 @@ theorem finite_of_full_subtype_finite {α : Type u} {P : α → Prop}
   | cons x t rh =>
     match x with
     | ⟨ x, _ ⟩ =>
-      byCases p : a = x
+      by_cases p : a = x
       focus
         apply Or.inl; assumption
       focus
@@ -1062,12 +1057,13 @@ theorem image_finite {α β : Type u} (h : finite α) (f : α → β) : finite {
    They are only meant to be used in the next theorem.
    It is possible to turn them into a general notion,
    but this is not my intention at the moment. -/
-private def sec {α β : Type u} (f : α → β) (b : {b // ∃ a, b = f a}) : α := b.2.1
+private noncomputable def sec {α β : Type u} (f : α → β) (b : {b // ∃ a, b = f a}) : α :=
+  @epsilon _ (nonempty_of_exists b.2) (λ a => b = f a)
 
 private def sec_image {α β : Type u} (f : α → β) : ∀ (b : {b // ∃ a, b = f a}), f (sec f b) = b := by
-  intro ⟨ b, ⟨ a, h ⟩ ⟩
+  intro ⟨ b, p@⟨ a, h ⟩ ⟩
   simp [sec]
-  conv => rhs; rw [h]
+  rw [← epsilon_spec p]
 
 private def sec_codomain_full {α β : Type u} (f : α → β) (inj : ∀ x y, f x = f y → x = y)
   (a : α) : ∃ b, a = sec f b := by
@@ -1086,12 +1082,14 @@ end Functions
 section Sums /- Sums of finite types -/
 
 theorem sum_finite {α β : Type u} (h₁ : finite α) (h₂ : finite β) : finite (α ⊕ β) := by
-  apply Exists.intro (List.append (List.map Sum.inl h₁.1) (List.map Sum.inr h₂.1))
+  let ⟨ l₁, h₁ ⟩ := h₁
+  let ⟨ l₂, h₂ ⟩ := h₂
+  apply Exists.intro (List.map Sum.inl l₁ ++ List.map Sum.inr l₂)
   intro x
   rw [List.mem_append]
   exact match x with
-  | Sum.inl a => Or.inl <| List.mem_map <| h₁.2 a
-  | Sum.inr b => Or.inr <| List.mem_map <| h₂.2 b
+  | Sum.inl a => Or.inl <| List.mem_map <| h₁ a
+  | Sum.inr b => Or.inr <| List.mem_map <| h₂ b
 
 end Sums
 
