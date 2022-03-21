@@ -977,7 +977,7 @@ theorem eq_of_contained_of_same_size {x y : Fintype α} (h : x ⊆ y)
 end Size
 
 def included_wfRel : WellFoundedRelation (Fintype α) where
-  rel x y := included x y ∧ x ≠ y
+  rel x y := x ⊆ y ∧ x ≠ y
   wf := by
     apply @Subrelation.wf _ (measure size).rel _ _
     focus

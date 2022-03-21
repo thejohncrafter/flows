@@ -9,6 +9,7 @@ import Lean
 import MyPackage.Base
 import MyPackage.Notation
 import MyPackage.Groundwork
+import MyPackage.SolveSets
 
 open Classical
 
@@ -341,16 +342,8 @@ theorem vehicle_on_image {θ : Subst α β} {A : Fintype β}
       rw [subst_cons]
       simp only [Term.vehicle]
       apply Fintype.included_trans (Fintype.union_on_included hl hr)
-      conv =>
-        rhs
-        rw [vehicle_cons, ← Fintype.union_assoc]
-        rw [← Fintype.union_idempotent A]
-        conv =>
-          lhs
-          conv => rw [Fintype.union_assoc]; rhs; rw [Fintype.union_comm]
-          rw [← Fintype.union_assoc]
-        rw [Fintype.union_assoc]
-      exact Fintype.included_refl
+      rw [vehicle_cons]
+      solve_sets
 
 theorem vehicle_on_image_contained {θ : Subst α β} {A : Fintype β} {u : Term α β}
   (h₁ : 𝒱 θ ⊆ A) (h₂ : 𝒱 u ⊆ A) : 𝒱 (u • θ) ⊆ A :=
@@ -408,34 +401,13 @@ theorem cons_vehicle_in {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
   rw [Fintype.union_included_iff]; apply And.intro
   focus
     apply Fintype.included_trans h₁
-    conv =>
-      rhs
-      rw [← Fintype.union_assoc]
-      lhs
-      conv => rw [Fintype.union_assoc]; rhs; rw [Fintype.union_comm]
-      rw [← Fintype.union_assoc]
-    rw [Fintype.union_assoc]
-    apply Fintype.included_union_r
-    exact Fintype.included_refl
+    solve_sets
   focus
     apply Fintype.included_trans h₂
-    suffices h : (𝒱 (r₁ • θ) ∪ 𝒱 (r₂ • θ) : Fintype β)
-      ⊆ 𝒱 l₁ ∪ 𝒱 l₂ ∪ 𝒱 r₁ ∪ (𝒱 l₁ ∪ 𝒱 l₂ ∪ 𝒱 r₂) by
-      apply Fintype.included_trans h
-      simp only [← Fintype.union_assoc]
-      -- Let's use our hacky lemmas
-      simp only [flush_union_left (𝒱 l₂)]
-      simp only [flush_union_left (𝒱 l₁)]
-      simp only [Fintype.union_idempotent, union_idempotent']
-      exact Fintype.included_refl
-    apply Fintype.union_on_included
+    apply Fintype.union_included_iff.2 ⟨ _, _ ⟩
       <;> apply vehicle_on_image_contained
-      <;> first
-        | apply Fintype.included_trans h₁
-          apply Fintype.included_union_r
-          exact Fintype.included_refl
-        | apply Fintype.included_union_l
-          exact Fintype.included_refl
+      <;> try apply Fintype.included_trans h₁
+    all_goals solve_sets
 
 theorem elementary_on_not_in_vehicle {x : β} {u v : Term α β} (h : Term.Var x ≠ u)
   (h' : ¬ x ∈ (𝒱 v : Fintype β)) :
@@ -561,21 +533,12 @@ theorem cons_carrier_in {θ φ : Subst α β} {l₁ r₁ l₂ r₂ : Term α β}
   apply Fintype.union_included_iff.2 (And.intro _ _)
   focus
     apply Fintype.included_trans h₅
-    apply Fintype.included_union_r
-    exact Fintype.included_refl
+    solve_sets
   focus
     apply Fintype.included_trans h₆
-    apply Fintype.union_included_iff.2 (And.intro _ _)
-      <;> first
-        | apply Fintype.included_trans (vehicle_on_image h₁ _)
-          apply Fintype.union_included_iff.2 (And.intro _ _)
-          focus
-            apply Fintype.included_union_r
-            exact Fintype.included_refl
-          focus
-            apply Fintype.included_union_l
-    exact Fintype.included_union_r _ <| Fintype.included_refl
-    exact Fintype.included_union_l _ <| Fintype.included_refl
+    apply Fintype.union_included_iff.2 ⟨ _, _ ⟩
+      <;> apply Fintype.included_trans (vehicle_on_image h₁ _)
+      <;> solve_sets
 
 end
 
@@ -780,18 +743,18 @@ private theorem decr_left (l₁ r₁ l₂ r₂ : Term α β) :
   apply lex_of_le_and_lt
   focus
     simp [invImage, InvImage, Fintype.included_wfRel]
+    simp only [WellFoundedRelation.rel]
+    simp only [vehicle_cons]
     suffices h : (𝒱 l₁ ∪ 𝒱 l₂ : Fintype β)
       ⊆ 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂) by
       by_cases p : (𝒱 l₁ ∪ 𝒱 l₂ : Fintype β)
         = 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂)
       exact Or.inr p
       exact Or.inl ⟨ h, p ⟩
-    simp only [vehicle_cons, ← Fintype.union_assoc]
-    simp only [flush_union_left (𝒱 l₂)]
-    rw [Fintype.union_assoc]
-    exact Fintype.included_union_r _ <| Fintype.included_refl
+    simp only [vehicle_cons]
+    solve_sets
   focus
-        exact Prod.RProd.intro (mass_decr_l _ _) (mass_decr_l _ _)
+    exact Prod.RProd.intro (mass_decr_l _ _) (mass_decr_l _ _)
 
 private theorem decr_right (l₁ r₁ l₂ r₂ : Term α β) {θ : Subst α β}
   (θ_vehicle : (𝒱 θ : Fintype β) ⊆ 𝒱 l₁ ∪ 𝒱 l₂)
@@ -809,10 +772,8 @@ private theorem decr_right (l₁ r₁ l₂ r₂ : Term α β) {θ : Subst α β}
           = 𝒱 (Term.Cons l₁ r₁) ∪ 𝒱 (Term.Cons l₂ r₂)
         exact Or.inr p
         exact Or.inl ⟨ h, p ⟩
-      simp only [vehicle_cons, ← Fintype.union_assoc]
-      simp only [flush_union_left (𝒱 l₂)]
-      rw [Fintype.union_assoc]
-      exact Fintype.included_union_l _ <| Fintype.included_refl
+      simp only [vehicle_cons]
+      solve_sets
     focus
       exact Prod.RProd.intro (mass_decr_r _ _) (mass_decr_r _ _)
   focus
@@ -823,26 +784,13 @@ private theorem decr_right (l₁ r₁ l₂ r₂ : Term α β) {θ : Subst α β}
       apply Fintype.union_included_iff.2 <| And.intro _ _
       focus
         apply Fintype.included_trans (vehicle_on_image Fintype.included_refl r₁)
-        apply Fintype.union_included_iff.2 <| And.intro _ _
-        focus
-          apply Fintype.included_trans θ_vehicle
-          simp only [← Fintype.union_assoc, flush_union_left (𝒱 l₂)]
-          rw [Fintype.union_assoc]
-          apply Fintype.included_union_r _ <| Fintype.included_refl
-        focus
-          simp only [← Fintype.union_assoc, ← flush_union_left (𝒱 r₁)]
-          apply Fintype.included_union_l _ <| Fintype.included_refl
+        apply Fintype.union_included_iff.2
+          <| And.intro (Fintype.included_trans θ_vehicle _) _
+          <;> solve_sets
       focus
         apply Fintype.included_trans (vehicle_on_image Fintype.included_refl r₂)
-        apply Fintype.union_included_iff.2 <| And.intro _ _
-        focus
-          apply Fintype.included_trans θ_vehicle
-          simp only [← Fintype.union_assoc, flush_union_left (𝒱 l₂)]
-          rw [Fintype.union_assoc]
-          apply Fintype.included_union_r _ <| Fintype.included_refl
-        focus
-          simp only [← Fintype.union_assoc, ← flush_union_left (𝒱 r₂)]
-          apply Fintype.included_union_l _ <| Fintype.included_refl
+        apply Fintype.union_included_iff.2 <| And.intro (Fintype.included_trans θ_vehicle _) _
+          <;> solve_sets
     focus
       let ⟨ x, hx ⟩ := (not_one_iff_modifying θ).1 h
       let not_in_r₁ := vanishing_on_term θ_vanishing hx r₁
@@ -1033,7 +981,7 @@ private def robinsonR (x : Term α β × Term α β)
     focus
       apply Or.inr ∘ Exists.intro 1
       rw [p]
-      -- Duplicate from above, may be extracted to a lemma
+      -- Duplicate of the above, may be extracted to a lemma
       apply And.intro _ (And.intro _ (And.intro _ _))
       focus
         funext θ
