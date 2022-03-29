@@ -6,10 +6,9 @@ Authors: Julien Marquet
 
 import Lean.Elab.Tactic.Basic
 
-import MyPackage.Notation
-import MyPackage.Groundwork
+import Flows.Groundwork
 
-open Lean Parser.Tactic Elab Command Elab.Tactic Meta
+open Lean Parser.Tactic Elab Elab.Tactic Meta
 
 -- From mathlib4
 namespace Lean.Expr
