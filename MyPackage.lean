@@ -698,24 +698,22 @@ private def rel : WellFoundedRelation (Term α β × Term α β) :=
 @[inline]
 private def P (x : Term α β × Term α β) := match x with
   | (u, v) => strangers (Subst α β) u v
-    ∨ ∃ θ : Subst α β, is_mgu _ u v θ
+    ⊕' { θ : Subst α β // is_mgu _ u v θ
       ∧ (𝒱 θ : Fintype β) ⊆ 𝒱 u ∪ 𝒱 v
       ∧ vanishing θ
-      ∧ carrier θ ⊆ 𝒱 u ∪ 𝒱 v
+      ∧ carrier θ ⊆ 𝒱 u ∪ 𝒱 v }
 
-private theorem P_comm (u v : Term α β) : P (u, v) ↔ P (v, u) := by
+private theorem P_comm (u v : Term α β) : P (u, v) → P (v, u) := by
   revert u v
-  suffices p : ∀ u v : Term α β, P (u, v) → P (v, u) by
-    intros; apply Iff.intro <;> apply p
   intro u v h
   match h with
-  | Or.inl h =>
-    apply Or.inl
+  | PSum.inl h =>
+    apply PSum.inl
     simp_all only [strangers_iff_no_unifier]
     intro θ h'
     exact h θ h'.symm
-  | Or.inr ⟨ θ, θ_mgu, θ_vehicle, θ_vanishing, θ_carrier ⟩ =>
-    apply Or.inr (Exists.intro θ _)
+  | PSum.inr ⟨ θ, θ_mgu, θ_vehicle, θ_vanishing, θ_carrier ⟩ =>
+    apply PSum.inr (Subtype.mk θ _)
     apply And.intro _ (And.intro _ (And.intro _ _))
     focus
       simp only [is_mgu]
@@ -829,7 +827,7 @@ private theorem unify_variable_of_not_in_vehicle {x : β} {u : Term α β}
     rw [← h'] at h
     apply h
     simp [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem]
-  apply Or.inr ∘ Exists.intro (Subst.elementary x_ne_u)
+  apply PSum.inr ∘ Subtype.mk (Subst.elementary x_ne_u)
   apply And.intro (mgu_of_unifies_and_most_general _ _)
     (And.intro _ (And.intro _ _))
   focus
@@ -852,7 +850,7 @@ private theorem unify_variable_of_not_in_vehicle {x : β} {u : Term α β}
 
 -- Clearly not well written, I sould automate this...
 -- But since I don't do a lot of calculus in the proofs here, I don't feel the need
--- to spend time one writing tactics for numbers.
+-- to spend time writing tactics for numbers.
 private theorem variable_stranger_of_in_vehicle {x : β} {u : Term α β}
   (h₁ : mass u ≠ 0) (h₂ : x ∈ (𝒱 u : Fintype β)) :
   strangers (Subst α β) (Term.Var x) u := by
@@ -883,10 +881,11 @@ private theorem variable_stranger_of_in_vehicle {x : β} {u : Term α β}
   exact h₁ p₅
 
 private theorem unify_mass_nonzero (x : β) {u : Term α β} (h : mass u ≠ 0) :
-  P ((Term.Var x), u) := by
-  by_cases p : x ∈ (𝒱 u : Fintype β)
-  exact Or.inl <| variable_stranger_of_in_vehicle h p
-  exact unify_variable_of_not_in_vehicle p
+  P ((Term.Var x), u) :=
+  if p : x ∈ (𝒱 u : Fintype β) then by
+    exact PSum.inl <| variable_stranger_of_in_vehicle h p
+  else by
+    exact unify_variable_of_not_in_vehicle p
 
 private theorem unify_cst (x : β) (c : α) : P (Term.Var x, Term.Cst c) := by
   have p' : (Term.Var x : Term α β) ≠ Term.Cst c := by
@@ -896,7 +895,7 @@ private theorem unify_cst (x : β) (c : α) : P (Term.Var x, Term.Cst c) := by
   simp [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem, Fintype.not_mem_empty]
 
 private theorem unify_cons (c : α) (l r : Term α β) : P (Term.Cst c, Term.Cons l r) := by
-  apply Or.inl
+  apply PSum.inl
   apply strangers_iff_no_unifier.2
   intro ⟨ θ, _ ⟩ h
   apply Term.noConfusion h
@@ -905,8 +904,8 @@ private def robinsonR (x : Term α β × Term α β)
   (rh : ∀ y, rel.rel y x → P y) : P x := match x with
   | (Term.Cons l₁ r₁, Term.Cons l₂ r₂) =>
     match rh (l₁, l₂) (decr_left _ _ _ _) with
-    | Or.inl h => by
-      apply Or.inl
+    | PSum.inl h => by
+      apply PSum.inl
       rw [strangers_iff_no_unifier]
       rw [strangers_iff_no_unifier] at h
       intro θ h'
@@ -914,10 +913,10 @@ private def robinsonR (x : Term α β × Term α β)
       simp only [subst_cons] at h'
       apply Term.noConfusion h'
       exact λ h _ => h
-    | Or.inr ⟨ θ, θ_mgu, θ_vehicle, θ_vanishing, θ_carrier ⟩ =>
+    | PSum.inr ⟨ θ, θ_mgu, θ_vehicle, θ_vanishing, θ_carrier ⟩ =>
       match rh (r₁ • θ, r₂ • θ) (by apply decr_right <;> assumption) with
-      | Or.inl h => by
-        apply Or.inl
+      | PSum.inl h => by
+        apply PSum.inl
         rw [strangers_iff_no_unifier]
         rw [strangers_iff_no_unifier] at h
         intro φ h'
@@ -930,9 +929,9 @@ private def robinsonR (x : Term α β × Term α β)
         apply And.intro <;> apply Term.noConfusion h'
           <;> intros
           <;> assumption
-      | Or.inr ⟨ φ, φ_mgu, φ_vehicle, φ_vanishing, φ_carrier ⟩ => by
-        apply Or.inr
-        apply Exists.intro (θ * φ)
+      | PSum.inr ⟨ φ, φ_mgu, φ_vehicle, φ_vanishing, φ_carrier ⟩ => by
+        apply PSum.inr
+        apply Subtype.mk (θ * φ)
         apply And.intro _ _
         focus
           exact cons_mgu θ_mgu φ_mgu
@@ -946,14 +945,13 @@ private def robinsonR (x : Term α β × Term α β)
     apply Ne.symm ∘ Nat.ne_of_lt
       <| Nat.lt_of_lt_of_le (Nat.zero_lt_one) (Nat.le_add_left _ _)
   | (Term.Cons l r, Term.Var x) => by
-    rw [P_comm]
+    apply P_comm
     apply unify_mass_nonzero
     apply Ne.symm ∘ Nat.ne_of_lt
       <| Nat.lt_of_lt_of_le (Nat.zero_lt_one) (Nat.le_add_left _ _)
-  | (Term.Var x, Term.Var y) => by
-    by_cases p : x = y
-    focus
-      apply Or.inr ∘ Exists.intro 1
+  | (Term.Var x, Term.Var y) =>
+    if p : x = y then by
+      apply PSum.inr ∘ Subtype.mk 1
       rw [p]
       apply And.intro _ (And.intro _ (And.intro _ _))
       focus
@@ -971,15 +969,14 @@ private def robinsonR (x : Term α β × Term α β)
       focus
         rw [is_one_iff_empty_carrier.1 rfl]
         apply Fintype.empty_included _
-    focus
+    else by
       have p' : (Term.Var x : Term α β) ≠ Term.Var y :=
         λ h => p <| Term.noConfusion h id
       apply unify_variable_of_not_in_vehicle
       simp [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem, p]
-  | (Term.Cst a, Term.Cst b) => by
-    by_cases p : a = b
-    focus
-      apply Or.inr ∘ Exists.intro 1
+  | (Term.Cst a, Term.Cst b) =>
+    if p : a = b then by
+      apply PSum.inr ∘ Subtype.mk 1
       rw [p]
       -- Duplicate of the above, may be extracted to a lemma
       apply And.intro _ (And.intro _ (And.intro _ _))
@@ -998,26 +995,31 @@ private def robinsonR (x : Term α β × Term α β)
       focus
         rw [is_one_iff_empty_carrier.1 rfl]
         apply Fintype.empty_included _
-    focus
-      apply Or.inl
+    else by
+      apply PSum.inl
       rw [strangers_iff_no_unifier]
       exact λ θ h => p <| match θ with
       | ⟨ _, _ ⟩ => Term.noConfusion h id
   | (Term.Cst c, Term.Cons l r) => by
     apply unify_cons
   | (Term.Cst c, Term.Var x) => by
-    rw [P_comm]
+    apply P_comm
     apply unify_cst
   | (Term.Cons l r, Term.Cst c) => by
-    rw [P_comm]
+    apply P_comm
     apply unify_cons
   | (Term.Var x, Term.Cst c) => by
     apply unify_cst
 
 theorem herbrand (u v : Term α β) :
   strangers (Subst α β) u v ∨ ∃ θ : Subst α β, is_mgu _ u v θ :=
-  match rel.wf.induction (u, v) robinsonR with
-  | Or.inl p => Or.inl p
-  | Or.inr ⟨ θ, p, _ ⟩ => Or.inr ⟨ θ, p ⟩
+  match rel.wf.recursion (u, v) robinsonR with
+  | PSum.inl p => Or.inl p
+  | PSum.inr ⟨ θ, p, _ ⟩ => Or.inr ⟨ θ, p ⟩
+
+def robinson (u v : Term α β) : Option (Subst α β) :=
+  match WellFounded.fix rel.wf robinsonR (u, v) with
+  | PSum.inl p => Option.none
+  | PSum.inr ⟨ θ, _ ⟩ => Option.some θ
 
 end
