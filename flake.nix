@@ -19,7 +19,7 @@
               vscodeExtensions = with vscode-extensions; [ vscodevim.vim ] ++ old2.vscodeExtensions;
             });
           }) {
-            name = "MyPackage"; # must match the name of the top-level .lean file
+            name = "Flows"; # must match the name of the top-level .lean file
             src = ./.;
           };
       in {
