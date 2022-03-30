@@ -26,7 +26,7 @@ theorem vanishing_on_term {θ : Subst α β} (h₁ : vanishing θ)
   (u : Term α β) : ¬ x ∈ (𝒱 (u • θ) : Fintype β) := by
   induction u with
   | Cst c => match θ with
-    | ⟨ θ, h ⟩ => intro h; exact h
+    | ⟨ θ, h ⟩ => intro h; cases h <;> trivial
   | Var y => exact h₁ h₂ _
   | Cons l r hl hr =>
     rw [subst_cons]
@@ -92,7 +92,7 @@ theorem elementary_vanishing {x : β} {u : Term α β} {h₁ : Term.Var x ≠ u}
   have p : z = x := by
     let p := carrier_spec.2 hz
     rw [elementary_carrier, Fintype.mem_mk_iff] at p
-    simp_all [List.mem]
+    cases p <;> trivial
   rw [p] at h'
   by_cases p' : t = x
   focus
@@ -102,7 +102,7 @@ theorem elementary_vanishing {x : β} {u : Term α β} {h₁ : Term.Var x ≠ u}
   focus
     rw [Subst.elementary_spec₂ _ p'] at h'
     apply Ne.symm p'
-    simp_all [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem]
+    cases h' <;> trivial
 
 end
 

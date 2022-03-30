@@ -14,6 +14,16 @@ Now that the theorem is proven, there is some cleaning to do in the files (to ma
  * Extract the computational part from the theorem (I want to be able to automatically get a unifier)
  * Commit to [mathlib4](https://github.com/leanprover-community/mathlib4) ?
 
+## Development
+
+I am working on making properties decidable (the goal is to prove equalities of flow multiplications by `decide` or by a simple tactic).
+
+At the moment, the inclusion on `Fintype` is decidable:
+```lean
+example : 0 ∈ (𝒱 (Term.Cons (Term.Var 0) (Term.Var 1) : Term Nat Nat) : Fintype Nat) := by
+  decide
+```
+
 ## References
 
 [1] : Lectures on Herbrand, with historical notes https://arxiv.org/pdf/0902.4682.pdf

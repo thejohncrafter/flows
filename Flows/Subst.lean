@@ -47,7 +47,7 @@ private theorem carriers_arrow_inj (f g : β → Term α β) (x y : {x // (f * g
       | apply y_nontriv; assumption; assumption
 
 instance : Monoid (Subst α β) where
-  one := ⟨ Term.Var, ⟨ [], λ ⟨ _, p ⟩ => p rfl ⟩ ⟩
+  one := ⟨ Term.Var, ⟨ [], λ ⟨ _, p ⟩ => False.elim <| p rfl ⟩ ⟩
   mul := λ ⟨ f, pf ⟩ ⟨ g, pg ⟩ =>
     ⟨ f * g, invimage_finite_of_inj (sum_finite pf pg) (carriers_arrow_inj f g) ⟩
   one_mul := λ ⟨ _, _ ⟩ => rfl
@@ -76,11 +76,12 @@ def Subst.elementary {x : β} {u : Term α β} (h : Term.Var x ≠ u) : Subst α
   ⟨ λ z => if z = x then u else Term.Var z, by
     apply Exists.intro [⟨ x, by simp [h.symm] ⟩]
     intro ⟨ z, hz ⟩
-    simp [List.mem]
+    rw [List.mem_head_or_mem_tail]
+    apply Or.inl
+    apply Subtype.eq
     apply byContradiction
     intro h'
-    apply hz
-    simp [h'] ⟩
+    simp [h'] at hz ⟩
 
 theorem Subst.elementary_spec₁ {x : β} {u : Term α β} (h : Term.Var x ≠ u) :
   (Term.Var x : Term α β) • (elementary h : Subst α β) = u := by
@@ -94,7 +95,7 @@ def carrier (θ : Subst α β) : Fintype β :=
   match θ with
   | ⟨ θ, h ⟩ =>
     let π : {x // θ x ≠ Term.Var x} → β := λ ⟨ x, _ ⟩ => x
-    Fintype.mk <| List.map π (epsilon <| λ l => ∀ a, List.mem a l)
+    Fintype.mk <| List.map π (epsilon <| λ l => ∀ a, a ∈ l)
 
 def carrier_spec {θ : Subst α β} {y : β} :
   y ∈ carrier θ ↔ (Term.Var y : Term α β) • θ ≠ Term.Var y :=
@@ -166,7 +167,8 @@ theorem elementary_carrier {x : β} {u : Term α β} {h : Term.Var x ≠ u} :
     focus
       rw [p]
       intro _
-      simp [Fintype.mem_mk_iff, List.mem]
+      simp [Fintype.mem_mk_iff]
+      apply List.Mem.head
     focus
       intro h'
       apply False.elim ∘ h'
@@ -174,7 +176,7 @@ theorem elementary_carrier {x : β} {u : Term α β} {h : Term.Var x ≠ u} :
   focus
     rw [Fintype.mem_mk_iff]
     intro p
-    rw [show y = x by simp_all [List.mem], Subst.elementary_spec₁]
+    rw [show y = x by cases p <;> trivial, Subst.elementary_spec₁]
     exact Ne.symm h
 
 theorem carrier_cons (θ φ : Subst α β) : carrier (θ * φ) ⊆ carrier θ ∪ carrier φ := by

@@ -8,7 +8,7 @@ import Flows.SolveSets
 import Flows.Term
 import Flows.Subst
 
-open Classical
+--open Classical
 
 set_option codegen false
 
@@ -36,11 +36,14 @@ theorem vehicle_cons {u v : Term α β} :
 theorem vehicle_one : 𝒱 (1 : Subst α β) = (∅ : Fintype β) := by
   rw [Fintype.ext]
   intro x
-  apply Iff.intro _ (λ h => False.elim h)
-  simp only [HasVehicle.vehicle, Subst.vehicle]
-  rw [Fintype.mem_image_iff, carrier_one]
-  intro ⟨ _, p, _ ⟩
-  exact Fintype.not_mem_empty _ p
+  apply Iff.intro
+  focus
+    simp only [HasVehicle.vehicle, Subst.vehicle]
+    rw [Fintype.mem_image_iff, carrier_one]
+    intro ⟨ _, p, _ ⟩
+    exact False.elim <| Fintype.not_mem_empty _ p
+  focus
+    exact λ h => False.elim <| Fintype.not_mem_empty _ h
 
 theorem vehicle_elementary {x : β} {u : Term α β} (h : Term.Var x ≠ u) :
   𝒱 (Subst.elementary h : Subst α β) = (𝒱 u : Fintype β) := by
@@ -52,7 +55,7 @@ theorem vehicle_elementary {x : β} {u : Term α β} (h : Term.Var x ≠ u) :
     simp only [HasVehicle.vehicle, Subst.vehicle] at h'
     let ⟨ t, t_in, in_img ⟩ := Fintype.mem_image_iff.1 h'
     rw [elementary_carrier, Fintype.mem_mk_iff] at t_in
-    rw [show t = x by simp_all [List.mem],
+    rw [show t = x by cases t_in <;> trivial,
       Subst.elementary_spec₁] at in_img
     exact in_img
   focus
@@ -61,7 +64,7 @@ theorem vehicle_elementary {x : β} {u : Term α β} (h : Term.Var x ≠ u) :
     apply Fintype.mem_image_iff.2 ⟨ x, (show x ∈ carrier _ from _), _ ⟩
     focus
       rw [elementary_carrier, Fintype.mem_mk_iff]
-      simp [List.mem]
+      apply List.Mem.head
     focus
       rw [Subst.elementary_spec₁]
       exact p
@@ -155,10 +158,9 @@ theorem elementary_on_not_in_vehicle {x : β} {u v : Term α β} (h : Term.Var x
     intro h
     apply h'
     rw [h]
-    simp [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem]
+    apply List.Mem.head
   | Cons l r hl hr =>
     rw [vehicle_cons, Fintype.mem_union_iff] at h'
     rw [subst_cons, hl (λ h => h' <| Or.inl h), hr (λ h => h' <| Or.inr h)]
 
 end
-

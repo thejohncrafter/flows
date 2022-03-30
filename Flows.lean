@@ -101,7 +101,7 @@ theorem weight_nonzero_of_mem_vehicle {x : β} {u : Term α β} (h : x ∈ (𝒱
     suffices p : x = y by
       rw [p]
       simp [weight]
-    simp_all [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem]
+    cases h <;> trivial
   | Cons l r hl hr =>
     simp only [weight]
     rw [vehicle_cons, Fintype.mem_union_iff] at h
@@ -273,7 +273,7 @@ private theorem unify_variable_of_not_in_vehicle {x : β} {u : Term α β}
     intro h'
     rw [← h'] at h
     apply h
-    simp [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem]
+    apply List.Mem.head
   apply PSum.inr ∘ Subtype.mk (Subst.elementary x_ne_u)
   apply And.intro (mgu_of_unifies_and_most_general _ _)
     (And.intro _ (And.intro _ _))
@@ -339,7 +339,7 @@ private theorem unify_cst (x : β) (c : α) : P (Term.Var x, Term.Cst c) := by
     intro h
     apply Term.noConfusion h
   apply unify_variable_of_not_in_vehicle
-  simp [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem, Fintype.not_mem_empty]
+  intro h; cases h <;> trivial
 
 private theorem unify_cons (c : α) (l r : Term α β) : P (Term.Cst c, Term.Cons l r) := by
   apply PSum.inl
@@ -420,7 +420,7 @@ private def robinsonR (x : Term α β × Term α β)
       have p' : (Term.Var x : Term α β) ≠ Term.Var y :=
         λ h => p <| Term.noConfusion h id
       apply unify_variable_of_not_in_vehicle
-      simp [HasVehicle.vehicle, Term.vehicle, Fintype.mem_mk_iff, List.mem, p]
+      intro h; apply p; cases h <;> trivial
   | (Term.Cst a, Term.Cst b) =>
     if p : a = b then by
       apply PSum.inr ∘ Subtype.mk 1
