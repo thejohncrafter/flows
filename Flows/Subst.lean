@@ -91,6 +91,37 @@ theorem Subst.elementary_spec₂ {x z : β} {u : Term α β} (h : Term.Var x ≠
   (Term.Var z : Term α β) • (elementary h : Subst α β) = Term.Var z := by
   simp [RSMul.smul, elementary, map_reduce, h']
 
+def subst_simple (x : β) (u : Term α β) :=
+  if p : Term.Var x = u then 1
+  else Subst.elementary p
+
+@[simp]
+theorem subst_simple_spec {x y : β} {u : Term α β} :
+  Term.Var y • subst_simple x u =
+    if y = x then u
+    else Term.Var y :=
+  if h₁ : Term.Var x = u then
+    if h₂ : y = x then by
+      simp [subst_simple, h₁, h₂, RAction.smul_one]
+    else by
+      simp [subst_simple, h₁, h₂, RAction.smul_one]
+  else
+    if h₂ : y = x then by
+      simp only [h₂, subst_simple, h₁]
+      exact Subst.elementary_spec₁ h₁
+    else by
+      simp only [subst_simple, h₁, h₂]
+      exact Subst.elementary_spec₂ h₁ h₂
+
+@[simp]
+theorem subst_simple_trivial {x : β} : subst_simple x (Term.Var x : Term α β) = 1 := by
+  simp [subst_simple]
+
+@[simp]
+theorem subst_cons {u v : Term α β} {θ : Subst α β} :
+  Term.Cons u v • θ = Term.Cons (u • θ) (v • θ) := by
+  cases θ; rfl
+
 def carrier (θ : Subst α β) : Fintype β :=
   match θ with
   | ⟨ θ, h ⟩ =>
@@ -186,8 +217,4 @@ theorem carrier_cons (θ φ : Subst α β) : carrier (θ * φ) ⊆ carrier θ �
   match θ with
   | ⟨ θ, _ ⟩ => match φ with
     | ⟨ φ, _ ⟩ => exact comp_carrier
-
-theorem subst_cons {u v : Term α β} {θ : Subst α β} :
-  Term.Cons u v • θ = Term.Cons (u • θ) (v • θ) := by
-  cases θ; rfl
 

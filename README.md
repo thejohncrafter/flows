@@ -18,10 +18,12 @@ Now that the theorem is proven, there is some cleaning to do in the files (to ma
 
 I am working on making properties decidable (the goal is to prove equalities of flow multiplications by `decide` or by a simple tactic).
 
-At the moment, the inclusion on `Fintype` is decidable:
+At the moment, I've made it simple to execute `robinson`, the function that
+computes unifiers:
 ```lean
-example : 0 ∈ (𝒱 (Term.Cons (Term.Var 0) (Term.Var 1) : Term Nat Nat) : Fintype Nat) := by
-  decide
+example : robinson (Term.Cons (Term.Var 0) (Term.Var 0) : Term Nat Nat)
+  (Term.Cons (Term.Var 0) (Term.Var 0) : Term Nat Nat) = some 1 := by
+  repeat rw [robinson_eq]; simp
 ```
 
 ## References

@@ -586,6 +586,15 @@ instance square_action (χ α : Type u) [m : Monoid α] [a : RAction χ α] :
     intro (_, _) (_, _) (_, _)
     apply Prod.eq <;> exact a.smul_mul _ _ _
 
+@[simp]
+theorem mul_one {α : Type u} [Monoid α] {x : α} : x * 1 = x := Monoid.mul_one _
+
+@[simp]
+theorem one_mul {α : Type u} [Monoid α] {x : α} : 1 * x = x := Monoid.one_mul _
+
+@[simp]
+theorem smul_one {α χ : Type u} [Monoid α] [RAction χ α] {x : χ} : x • (1 : α) = x := RAction.smul_one _
+
 end Algebra
 
 section Fintype
